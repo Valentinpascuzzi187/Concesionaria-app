@@ -424,6 +424,21 @@
         <!-- Auditoría (Premium) -->
         <section id="auditoria" class="section">
             <h2>🔍 Auditoría</h2>
+            
+            <!-- Botones de Exportación -->
+            <div style="margin-bottom: 15px; padding: 15px; background: #e8f5e9; border-radius: 10px;">
+                <h4 style="margin: 0 0 10px 0;">📊 Exportar Datos</h4>
+                <button class="btn btn-success" onclick="descargarExcel()" style="margin-right: 10px;">
+                    📥 Descargar Excel
+                </button>
+                <button class="btn btn-primary" onclick="descargarJSON()">
+                    📄 Descargar JSON
+                </button>
+                <p style="margin: 10px 0 0 0; font-size: 0.8em; color: #666;">
+                    Descarga todos los datos para subir a Google Drive
+                </p>
+            </div>
+            
             <div class="list-container">
                 <table style="width: 100%; font-size: 0.8em;">
                     <thead>
@@ -775,6 +790,36 @@
             }
             showMainMenu(false);
         });
+
+        // Funciones de descarga
+        function descargarExcel() {
+            if (!currentUser?.es_premium) {
+                alert('⚠️ Solo el administrador premium puede exportar');
+                return;
+            }
+            API_URL = getServerURL();
+            window.open(`${API_URL}/api/exportar-excel`, '_blank');
+        }
+
+        async function descargarJSON() {
+            if (!currentUser?.es_premium) {
+                alert('⚠️ Solo el administrador premium puede exportar');
+                return;
+            }
+            try {
+                const datos = await apiCall('/api/exportar-datos');
+                const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `concesionaria_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                alert('✅ Archivo JSON descargado. Súbelo a Google Drive para respaldo.');
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
     </script>
 </body>
 </html>

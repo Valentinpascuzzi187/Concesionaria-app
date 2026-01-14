@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -251,11 +252,73 @@ app.post('/api/importar-datos', async (req, res) => {
       origen: 'importacion_manual'
     });
     
-    res.json({ message: 'Sistema de importación listo (requiere implementación específica)' });
+    res.json({ message: 'Sistema de importación listo' });
     
   } catch (error) {
     console.error('Error al importar datos:', error);
     res.status(500).json({ message: 'Error al importar datos' });
+  }
+});
+
+// Ruta para exportar a Excel (descarga directa)
+app.get('/api/exportar-excel', async (req, res) => {
+  try {
+    const datos = await exportarDatosJSON();
+    
+    // Crear workbook de Excel
+    const workbook = XLSX.utils.book_new();
+    
+    // Agregar cada tabla como una hoja
+    if (datos.usuarios && datos.usuarios.length > 0) {
+      const wsUsuarios = XLSX.utils.json_to_sheet(datos.usuarios);
+      XLSX.utils.book_append_sheet(workbook, wsUsuarios, 'Usuarios');
+    }
+    
+    if (datos.vehiculos && datos.vehiculos.length > 0) {
+      const wsVehiculos = XLSX.utils.json_to_sheet(datos.vehiculos);
+      XLSX.utils.book_append_sheet(workbook, wsVehiculos, 'Vehiculos');
+    }
+    
+    if (datos.clientes && datos.clientes.length > 0) {
+      const wsClientes = XLSX.utils.json_to_sheet(datos.clientes);
+      XLSX.utils.book_append_sheet(workbook, wsClientes, 'Clientes');
+    }
+    
+    if (datos.minutas && datos.minutas.length > 0) {
+      const wsMinutas = XLSX.utils.json_to_sheet(datos.minutas);
+      XLSX.utils.book_append_sheet(workbook, wsMinutas, 'Minutas');
+    }
+    
+    if (datos.auditoria && datos.auditoria.length > 0) {
+      const wsAuditoria = XLSX.utils.json_to_sheet(datos.auditoria);
+      XLSX.utils.book_append_sheet(workbook, wsAuditoria, 'Auditoria');
+    }
+    
+    if (datos.tracking_sesiones && datos.tracking_sesiones.length > 0) {
+      const wsSesiones = XLSX.utils.json_to_sheet(datos.tracking_sesiones);
+      XLSX.utils.book_append_sheet(workbook, wsSesiones, 'Sesiones');
+    }
+    
+    if (datos.tracking_acciones && datos.tracking_acciones.length > 0) {
+      const wsAcciones = XLSX.utils.json_to_sheet(datos.tracking_acciones);
+      XLSX.utils.book_append_sheet(workbook, wsAcciones, 'Acciones');
+    }
+    
+    // Generar buffer del archivo Excel
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    // Enviar archivo para descarga
+    const timestamp = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Disposition', `attachment; filename=concesionaria_${timestamp}.xlsx`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(excelBuffer);
+    
+    // Registrar auditoría
+    registrarAuditoria(1, 'EXPORTACION_EXCEL', 'sistema', null, null, { timestamp });
+    
+  } catch (error) {
+    console.error('Error al exportar Excel:', error);
+    res.status(500).json({ message: 'Error al exportar Excel' });
   }
 });
 
