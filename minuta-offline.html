@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minuta Profesional - Modo Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-group input:disabled,
+        .form-group select:disabled,
+        .form-group textarea:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+        
+        .required {
+            color: #e74c3c;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #f1c40f 100%);
+            color: white;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .price-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .price-box h3 {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        
+        .price-box .price {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-borrador {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .status-confirmada {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1976d2;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        
+        .signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .signature-box {
+            text-align: center;
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        
+        .signature-box h4 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .signature-line {
+            border-bottom: 2px solid #333;
+            margin: 20px 0;
+            height: 50px;
+        }
+        
+        .signature-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .signatures {
+                grid-template-columns: 1fr;
+            }
+            
+            .buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+            
+            .buttons {
+                display: none;
+            }
+            
+            .section {
+                border: 1px solid #ddd;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Minuta Profesional de Venta</h1>
+            <p>Modo Offline - Funciona sin conexión a internet</p>
+        </div>
+        
+        <div class="content">
+            <div class="alert alert-info">
+                <strong>ℹ️ Modo Offline:</strong> Esta versión funciona completamente offline. Los datos se guardan localmente y puedes sincronizarlos más tarde.
+            </div>
+            
+            <form id="minutaForm">
+                <!-- Lugar y Fecha -->
+                <div class="section">
+                    <h2>📍 Lugar y Fecha</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lugar">Lugar de Emisión <span class="required">*</span></label>
+                            <input type="text" id="lugar" name="lugar" value="Buenos Aires" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha">Fecha <span class="required">*</span></label>
+                            <input type="date" id="fecha" name="fecha" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Comprador -->
+                <div class="section">
+                    <h2>👤 Datos del Comprador</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="compradorNombre">Nombre Completo <span class="required">*</span></label>
+                            <input type="text" id="compradorNombre" name="compradorNombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="compradorDni">DNI <span class="required">*</span></label>
+                            <input type="text" id="compradorDni" name="compradorDni" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="compradorDomicilio">Domicilio <span class="required">*</span></label>
+                            <input type="text" id="compradorDomicilio" name="compradorDomicilio" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="compradorTelefono">Teléfono</label>
+                            <input type="tel" id="compradorTelefono" name="compradorTelefono">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Vehículo -->
+                <div class="section">
+                    <h2>🚗 Datos del Vehículo</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="vehiculoMarca">Marca <span class="required">*</span></label>
+                            <input type="text" id="vehiculoMarca" name="vehiculoMarca" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vehiculoModelo">Modelo <span class="required">*</span></label>
+                            <input type="text" id="vehiculoModelo" name="vehiculoModelo" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="vehiculoAnio">Año <span class="required">*</span></label>
+                            <input type="number" id="vehiculoAnio" name="vehiculoAnio" min="1900" max="2025" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vehiculoDominio">Dominio/Patente</label>
+                            <input type="text" id="vehiculoDominio" name="vehiculoDominio">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Operación -->
+                <div class="section">
+                    <h2>💰 Condiciones de la Operación</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="precioLista">Precio de Lista <span class="required">*</span></label>
+                            <input type="number" id="precioLista" name="precioLista" min="0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modalidadPago">Modalidad de Pago <span class="required">*</span></label>
+                            <select id="modalidadPago" name="modalidadPago" required>
+                                <option value="">Seleccionar...</option>
+                                <option value="contado">Contado</option>
+                                <option value="financiado">Financiado</option>
+                                <option value="permuta">Permuta</option>
+                                <option value="mixto">Mixto</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="price-box">
+                        <h3>Precio Final</h3>
+                        <div class="price" id="precioFinal">$0.00</div>
+                    </div>
+                </div>
+                
+                <!-- Observaciones -->
+                <div class="section">
+                    <h2>📝 Observaciones</h2>
+                    <div class="form-group">
+                        <label for="observaciones">Observaciones y Condiciones</label>
+                        <textarea id="observaciones" name="observaciones" rows="4" placeholder="Detalles adicionales de la operación..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Botones -->
+                <div class="buttons">
+                    <button type="button" class="btn btn-primary" id="btnCompletar" onclick="completarMinuta()">
+                        ✏️ Completar Minuta
+                    </button>
+                    <button type="button" class="btn btn-success" id="btnConfirmar" onclick="confirmarMinuta()" disabled>
+                        ✅ Confirmar Minuta
+                    </button>
+                    <button type="button" class="btn btn-warning" id="btnImprimir" onclick="imprimirMinuta()" disabled>
+                        🖨️ Imprimir
+                    </button>
+                    <button type="button" class="btn btn-info" id="btnGuardar" onclick="guardarOffline()">
+                        💾 Guardar Offline
+                    </button>
+                </div>
+                
+                <!-- Estado -->
+                <div style="text-align: center; margin: 20px 0;">
+                    <span class="status-badge status-borrador" id="estadoBadge">BORRADOR</span>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let minutaEstado = 'borrador';
+        let formHabilitado = false;
+        
+        // Inicializar fecha actual
+        document.getElementById('fecha').valueAsDate = new Date();
+        
+        // Calcular precio final
+        document.getElementById('precioLista').addEventListener('input', calcularPrecioFinal);
+        document.getElementById('modalidadPago').addEventListener('change', calcularPrecioFinal);
+        
+        function calcularPrecioFinal() {
+            const precioLista = parseFloat(document.getElementById('precioLista').value) || 0;
+            const modalidad = document.getElementById('modalidadPago').value;
+            let precioFinal = precioLista;
+            
+            // Aplicar descuentos según modalidad
+            if (modalidad === 'contado') {
+                precioFinal = precioLista * 0.9; // 10% descuento contado
+            }
+            
+            document.getElementById('precioFinal').textContent = `$${precioFinal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        }
+        
+        function completarMinuta() {
+            formHabilitado = true;
+            const inputs = document.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+            inputs.forEach(input => input.disabled = false);
+            
+            document.getElementById('btnCompletar').disabled = true;
+            document.getElementById('btnConfirmar').disabled = false;
+        }
+        
+        function confirmarMinuta() {
+            if (!validarFormulario()) {
+                return;
+            }
+            
+            minutaEstado = 'confirmada';
+            formHabilitado = false;
+            
+            // Deshabilitar formulario
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => input.disabled = true);
+            
+            // Actualizar estado
+            document.getElementById('estadoBadge').className = 'status-badge status-confirmada';
+            document.getElementById('estadoBadge').textContent = 'CONFIRMADA';
+            
+            // Habilitar botones
+            document.getElementById('btnConfirmar').disabled = true;
+            document.getElementById('btnImprimir').disabled = false;
+            
+            alert('✅ Minuta confirmada exitosamente. Ahora puede imprimir.');
+        }
+        
+        function validarFormulario() {
+            const required = document.querySelectorAll('[required]');
+            let valido = true;
+            let errores = [];
+            
+            required.forEach(field => {
+                if (!field.value.trim()) {
+                    valido = false;
+                    errores.push(`El campo ${field.previousElementSibling.textContent.replace('*', '').trim()} es obligatorio.`);
+                }
+            });
+            
+            if (!valido) {
+                alert('❌ Por favor complete los siguientes campos:\n\n' + errores.join('\n'));
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function imprimirMinuta() {
+            window.print();
+        }
+        
+        function guardarOffline() {
+            const formData = new FormData(document.getElementById('minutaForm'));
+            const data = Object.fromEntries(formData);
+            data.estado = minutaEstado;
+            data.fechaGuardado = new Date().toISOString();
+            
+            // Guardar en localStorage
+            const minutas = JSON.parse(localStorage.getItem('minutasOffline') || '[]');
+            minutas.push(data);
+            localStorage.setItem('minutasOffline', JSON.stringify(minutas));
+            
+            alert('✅ Minuta guardada offline. Puede sincronizarla más tarde.');
+        }
+        
+        // Inicializar formulario deshabilitado
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => input.disabled = true);
+        });
+    </script>
+</body>
+</html>
