@@ -563,8 +563,8 @@
                 return `${currentProtocol}//${currentHost}`;
             }
             
-            // Si hay IP configurada manualmente
-            const serverIP = document.getElementById('serverIP').value || localStorage.getItem('serverIP') || 'localhost';
+            // Si hay IP configurada manualmente. Por defecto usar producción para APK.
+            const serverIP = document.getElementById('serverIP').value || localStorage.getItem('serverIP') || 'concesionaria-app-production.up.railway.app';
             localStorage.setItem('serverIP', serverIP);
             
             if (serverIP.includes('ngrok') || serverIP.includes('railway') || serverIP.includes('render')) {
