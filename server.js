@@ -24,6 +24,7 @@ app.get('/mobile.html', (req, res) => res.sendFile(path.join(__dirname, 'public'
 app.get('/mobile-railway.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-railway.html')));
 app.get('/mobile-offline.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-offline.html')));
 app.get('/minuta-venta.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minuta-venta.html')));
+app.get('/minuta-directa.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minuta-directa.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
 
 // Versión actualizada - Minuta Profesional v2.0 - Login corregido - 2025-01-15
