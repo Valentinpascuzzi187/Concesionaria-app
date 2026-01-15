@@ -752,7 +752,7 @@
                         <p><strong>Financiamiento:</strong> ${m.financiamiento || 'Ninguno'}</p>
                         <p><strong>Reserva:</strong> $${(m.reserva_monto || 0).toLocaleString()}</p>
                         ${m.tradein_proporciona ? `<p><strong>Trade-in:</strong> ${m.tradein_datos || '-'}</p>` : ''}
-                        ${currentUser && currentUser.es_premium ? `
+                        ${currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin') ? `
                             <div style="margin-top:10px;">
                                 <button class="btn btn-danger" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
                                 <button class="btn btn-secondary" onclick="editarMinutaPrompt(${m.id})">✏️ Editar</button>
