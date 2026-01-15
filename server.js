@@ -1619,6 +1619,55 @@ app.get('/api/minutas/detalladas/:id', async (req, res) => {
   }
 });
 
+// Rutas de eliminación para Admin Premium
+app.delete('/api/vehiculos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar si es admin premium
+    // (Aquí deberías verificar el token o sesión del usuario)
+    
+    await q('UPDATE vehiculos SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    
+    res.json({ message: 'Vehículo eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando vehículo:', error);
+    res.status(500).json({ message: 'Error al eliminar vehículo' });
+  }
+});
+
+app.delete('/api/clientes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar si es admin premium
+    // (Aquí deberías verificar el token o sesión del usuario)
+    
+    await q('UPDATE clientes SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    
+    res.json({ message: 'Cliente eliminado correctamente' });
+  } catch (error) {
+    console.error('Error eliminando cliente:', error);
+    res.status(500).json({ message: 'Error al eliminar cliente' });
+  }
+});
+
+app.delete('/api/minutas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar si es admin premium
+    // (Aquí deberías verificar el token o sesión del usuario)
+    
+    await q('UPDATE minutas SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    
+    res.json({ message: 'Minuta eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando minuta:', error);
+    res.status(500).json({ message: 'Error al eliminar minuta' });
+  }
+});
+
 /* =========================
    USUARIOS (ADMIN PREMIUM)
 ========================= */

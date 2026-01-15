@@ -226,6 +226,40 @@ contextBridge.exposeInMainWorld('api', {
   
   importarDatos: (datos) => ipcRenderer.invoke('importar-datos', datos),
   
+  // Funciones de eliminación para Admin Premium
+  deleteVehiculo: async (id) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/vehiculos/${id}`, {
+        method: 'DELETE'
+      });
+      return response.json();
+    } catch (error) {
+      throw new Error('Error: ' + error.message);
+    }
+  },
+
+  deleteCliente: async (id) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/clientes/${id}`, {
+        method: 'DELETE'
+      });
+      return response.json();
+    } catch (error) {
+      throw new Error('Error: ' + error.message);
+    }
+  },
+
+  deleteMinuta: async (id) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/minutas/${id}`, {
+        method: 'DELETE'
+      });
+      return response.json();
+    } catch (error) {
+      throw new Error('Error: ' + error.message);
+    }
+  },
+
   // Función para descargar respaldo
   descargarRespaldo: () => ipcRenderer.invoke('descargar-respaldo')
 });

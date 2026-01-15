@@ -1,29 +1,3 @@
-// Helper para llamadas API (funciona en Electron y web)
-async function apiCall(endpoint, method = 'GET', data = null) {
-  if (window.api && window.api[endpoint.split('/')[1]]) {
-    // Electron - usar API expuesta
-    const apiMethod = endpoint.split('/')[1];
-    if (method === 'GET') {
-      return await window.api[apiMethod]();
-    } else {
-      return await window.api[apiMethod](data);
-    }
-  } else {
-    // Web - usar fetch directo
-    const serverURL = 'https://concesionaria-app-production.up.railway.app';
-    const options = {
-      method: method === 'GET' ? 'GET' : 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    };
-    
-    if (data && method !== 'GET') {
-      options.body = JSON.stringify(data);
-    }
-    
-    const response = await fetch(`${serverURL}${endpoint}`, options);
-    return await response.json();
-  }
-}
 
 // Variables globales
 let currentUser = null;
@@ -95,23 +69,7 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
   const messageDiv = document.getElementById('loginMessage');
 
   try {
-    let response;
-    
-    // Detectar si estamos en Electron o web
-    if (window.api && window.api.login) {
-      // Electron
-      response = await window.api.login(email, password);
-    } else {
-      // Web - usar fetch directo
-      const serverURL = 'https://concesionaria-app-production.up.railway.app';
-      const res = await fetch(`${serverURL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      response = await res.json();
-    }
-    
+    const response = await window.api.login(email, password);
     if (response.user) {
       currentUser = response.user;
       currentSessionId = response.user.sesion_id;
@@ -151,23 +109,7 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
   const messageDiv = document.getElementById('registerMessage');
 
   try {
-    let response;
-    
-    // Detectar si estamos en Electron o web
-    if (window.api && window.api.register) {
-      // Electron
-      response = await window.api.register(nombre, email, password, rol);
-    } else {
-      // Web - usar fetch directo
-      const serverURL = 'https://concesionaria-app-production.up.railway.app';
-      const res = await fetch(`${serverURL}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, password, rol })
-      });
-      response = await res.json();
-    }
-    
+    const response = await window.api.register(nombre, email, password, rol);
     messageDiv.className = 'message success';
     messageDiv.textContent = '✅ ' + (response.message || 'Registro exitoso');
     document.getElementById('registerForm').reset();
@@ -236,9 +178,9 @@ async function logout() {
 async function loadDashboard() {
   try {
     // Cargar estadísticas
-    const vehiculos = await apiCall('/api/vehiculos');
-    const clientes = await apiCall('/api/clientes');
-    const minutas = await apiCall('/api/minutas');
+    const vehiculos = await window.api.getVehiculos();
+    const clientes = await window.api.getClientes();
+    const minutas = await window.api.getMinutas();
     
     document.getElementById('stockCount').textContent = vehiculos.length;
     document.getElementById('clientesCount').textContent = clientes.length;
@@ -299,7 +241,7 @@ document.getElementById('vehiculoFormElement')?.addEventListener('submit', async
 // Load Vehiculos
 async function loadVehiculos() {
   try {
-    const vehiculos = await apiCall('/api/vehiculos');
+    const vehiculos = await window.api.getVehiculos();
     const listDiv = document.getElementById('vehiculosContent');
 
     if (vehiculos.length === 0) {
@@ -315,6 +257,12 @@ async function loadVehiculos() {
         <p><strong>Dominio:</strong> ${v.dominio || 'N/A'}</p>
         <p><strong>Precio:</strong> $${v.precio.toLocaleString()}</p>
         <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+        ${currentUser && currentUser.es_premium ? `
+          <div style="margin-top: 15px;">
+            <button class="btn btn-danger btn-sm" onclick="eliminarVehiculo(${v.id})">🗑️ Eliminar</button>
+            <button class="btn btn-warning btn-sm" onclick="editarVehiculo(${v.id})">✏️ Editar</button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
   } catch (error) {
@@ -359,7 +307,7 @@ document.getElementById('clienteFormElement')?.addEventListener('submit', async 
 // Load Clientes
 async function loadClientes() {
   try {
-    const clientes = await apiCall('/api/clientes');
+    const clientes = await window.api.getClientes();
     const listDiv = document.getElementById('clientesContent');
 
     if (clientes.length === 0) {
@@ -375,6 +323,12 @@ async function loadClientes() {
         <p><strong>Email:</strong> ${c.email || 'N/A'}</p>
         <p><strong>Dirección:</strong> ${c.direccion || 'N/A'}</p>
         ${c.observaciones ? `<p><strong>Observaciones:</strong> ${c.observaciones}</p>` : ''}
+        ${currentUser && currentUser.es_premium ? `
+          <div style="margin-top: 15px;">
+            <button class="btn btn-danger btn-sm" onclick="eliminarCliente(${c.id})">🗑️ Eliminar</button>
+            <button class="btn btn-warning btn-sm" onclick="editarCliente(${c.id})">✏️ Editar</button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
   } catch (error) {
@@ -394,8 +348,8 @@ function toggleMinutaForm() {
 // Load opciones para minutas
 async function loadMinutaOptions() {
   try {
-    const vehiculos = await apiCall('/api/vehiculos');
-    const clientes = await apiCall('/api/clientes');
+    const vehiculos = await window.api.getVehiculos();
+    const clientes = await window.api.getClientes();
     
     // Filtrar vehículos disponibles
     const vehiculosDisponibles = vehiculos.filter(v => v.estado === 'disponible');
@@ -445,7 +399,7 @@ document.getElementById('minutaFormElement')?.addEventListener('submit', async (
   const messageDiv = document.getElementById('minutaMessage');
 
   try {
-    const response = await apiCall('/api/minutas', 'POST', minutaData);
+    const response = await window.api.createMinuta(minutaData);
     messageDiv.className = 'message success';
     messageDiv.textContent = '✅ ' + (response.message || 'Minuta creada correctamente');
     document.getElementById('minutaFormElement').reset();
@@ -459,64 +413,88 @@ document.getElementById('minutaFormElement')?.addEventListener('submit', async (
 // Load Minutas
 async function loadMinutas() {
   try {
-    // Cargar minutas simples
-    const minutas = await apiCall('/api/minutas');
-    
-    // Cargar minutas detalladas
-    const minutasDetalladas = await apiCall('/api/minutas/detalladas');
-    
+    const minutas = await window.api.getMinutas();
     const listDiv = document.getElementById('minutasContent');
 
-    if (minutas.length === 0 && minutasDetalladas.length === 0) {
+    if (minutas.length === 0) {
       listDiv.innerHTML = '<p style="text-align: center; color: #999;">No hay minutas registradas</p>';
       return;
     }
 
-    let html = '';
-
-    // Renderizar minutas simples
-    if (minutas.length > 0) {
-      html += '<h3>Minutas Simples</h3>';
-      html += minutas.map(m => `
-        <div class="minuta-card">
-          <h4>Minuta #${m.id} <span style="color: #666; font-size: 12px;">(Simple)</span></h4>
-          <p><strong>Vehículo:</strong> ${m.marca} ${m.modelo} (${m.anio})</p>
-          <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
-          <p><strong>Vendedor:</strong> ${m.vendedor_nombre}</p>
-          <p><strong>Precio Final:</strong> $${m.precio_final.toLocaleString()}</p>
-          <p><strong>Estado:</strong> <span class="estado-${m.estado}">${m.estado}</span></p>
-          <p><strong>Fecha:</strong> ${new Date(m.created_at).toLocaleDateString()}</p>
-          ${m.observaciones ? `<p><strong>Observaciones:</strong> ${m.observaciones}</p>` : ''}
-        </div>
-      `).join('');
-    }
-
-    // Renderizar minutas detalladas
-    if (minutasDetalladas.length > 0) {
-      html += '<h3 style="margin-top: 30px;">Minutas Profesionales</h3>';
-      html += minutasDetalladas.map(m => {
-        const datos = m.datos_completos;
-        return `
-          <div class="minuta-card" style="border-left: 4px solid #667eea;">
-            <h4>Minuta #${m.id} <span style="color: #667eea; font-size: 12px;">(Profesional)</span></h4>
-            <p><strong>Vehículo:</strong> ${datos.vehiculo?.marca} ${datos.vehiculo?.modelo} (${datos.vehiculo?.anio})</p>
-            <p><strong>Comprador:</strong> ${datos.comprador?.nombre}</p>
-            <p><strong>Vendedor:</strong> ${datos.vendedor?.razon}</p>
-            <p><strong>Precio Final:</strong> $${datos.operacion?.precioLista ? parseFloat(datos.operacion.precioLista).toLocaleString() : 'N/A'}</p>
-            <p><strong>Modalidad:</strong> ${datos.operacion?.modalidadPago || 'N/A'}</p>
-            <p><strong>Estado:</strong> <span class="estado-${m.estado}">${m.estado}</span></p>
-            <p><strong>Fecha:</strong> ${new Date(m.created_at).toLocaleDateString()}</p>
-            <p><strong>Creado por:</strong> ${m.creado_por_nombre || 'Sistema'}</p>
-            ${datos.observaciones ? `<p><strong>Observaciones:</strong> ${datos.observaciones}</p>` : ''}
+    listDiv.innerHTML = minutas.map(m => `
+      <div class="minuta-card">
+        <h4>Minuta #${m.id}</h4>
+        <p><strong>Vehículo:</strong> ${m.marca} ${m.modelo} (${m.anio})</p>
+        <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
+        <p><strong>Vendedor:</strong> ${m.vendedor_nombre}</p>
+        <p><strong>Precio Original:</strong> $${m.precio_original.toLocaleString()}</p>
+        <p><strong>Precio Final:</strong> $${m.precio_final.toLocaleString()}</p>
+        <p><strong>Estado:</strong> <span class="estado-${m.estado}">${m.estado}</span></p>
+        <p><strong>Fecha:</strong> ${new Date(m.created_at).toLocaleDateString()}</p>
+        ${m.observaciones ? `<p><strong>Observaciones:</strong> ${m.observaciones}</p>` : ''}
+        ${currentUser && currentUser.es_premium ? `
+          <div style="margin-top: 15px;">
+            <button class="btn btn-danger btn-sm" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
+            <button class="btn btn-warning btn-sm" onclick="editarMinuta(${m.id})">✏️ Editar</button>
           </div>
-        `;
-      }).join('');
-    }
-
-    listDiv.innerHTML = html;
+        ` : ''}
+      </div>
+    `).join('');
   } catch (error) {
     console.error('Error cargando minutas:', error);
   }
+}
+
+// Funciones para Admin Premium
+async function eliminarVehiculo(id) {
+  if (!confirm('¿Estás seguro de que quieres eliminar este vehículo?')) return;
+  
+  try {
+    await window.api.deleteVehiculo(id);
+    loadVehiculos();
+    alert('✅ Vehículo eliminado correctamente');
+  } catch (error) {
+    alert('❌ Error al eliminar vehículo: ' + error.message);
+  }
+}
+
+async function eliminarCliente(id) {
+  if (!confirm('¿Estás seguro de que quieres eliminar este cliente?')) return;
+  
+  try {
+    await window.api.deleteCliente(id);
+    loadClientes();
+    alert('✅ Cliente eliminado correctamente');
+  } catch (error) {
+    alert('❌ Error al eliminar cliente: ' + error.message);
+  }
+}
+
+async function eliminarMinuta(id) {
+  if (!confirm('¿Estás seguro de que quieres eliminar esta minuta?')) return;
+  
+  try {
+    await window.api.deleteMinuta(id);
+    loadMinutas();
+    alert('✅ Minuta eliminada correctamente');
+  } catch (error) {
+    alert('❌ Error al eliminar minuta: ' + error.message);
+  }
+}
+
+function editarVehiculo(id) {
+  // TODO: Implementar formulario de edición
+  alert('🔧 Función de edición en desarrollo');
+}
+
+function editarCliente(id) {
+  // TODO: Implementar formulario de edición
+  alert('🔧 Función de edición en desarrollo');
+}
+
+function editarMinuta(id) {
+  // TODO: Implementar formulario de edición
+  alert('🔧 Función de edición en desarrollo');
 }
 
 // Inicialización
