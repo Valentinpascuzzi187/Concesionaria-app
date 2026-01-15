@@ -1365,6 +1365,7 @@ app.get('/api/clientes', async (req, res) => {
 
 app.post('/api/clientes', async (req, res) => {
   try {
+    console.log('POST /api/clientes body:', req.body);
     const { nombre, apellido, dni, telefono, email, direccion, observaciones } = req.body;
 
     if (!nombre || !apellido || !dni) {
