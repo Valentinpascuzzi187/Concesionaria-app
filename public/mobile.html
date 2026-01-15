@@ -706,8 +706,8 @@
                 
                 container.innerHTML = vehiculos.length ? vehiculos.map(v => `
                     <div class="card" style="display:flex; gap:12px; align-items:center;">
-                        <div style="width:110px; flex: 0 0 110px;">
-                            <img src="${v.imagen || '/assets/placeholder-car.png'}" alt="${v.marca} ${v.modelo}" style="width:100%; height:80px; object-fit:cover; border-radius:8px;">
+                        <div style="width:110px; flex: 0 0 110px; display:flex; align-items:center; justify-content:center;">
+                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:100px; height:80px; border-radius:8px;">
                         </div>
                         <div style="flex:1;">
                             <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
