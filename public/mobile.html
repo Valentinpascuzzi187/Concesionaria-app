@@ -608,9 +608,19 @@
                 headers: { 'Content-Type': 'application/json' }
             };
             if (body) options.body = JSON.stringify(body);
-            
+
             const response = await fetch(`${API_URL}${endpoint}`, options);
-            return response.json();
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            const text = await response.text();
+            if (contentType.includes('application/json')) {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    return { __parseError: true, raw: text, status: response.status, contentType };
+                }
+            }
+            // Non-JSON response — return raw text and metadata so caller can show it
+            return { __raw: text, status: response.status, contentType };
         }
 
         async function login() {
@@ -638,6 +648,10 @@
                     showSection('dashboard');
                     
                     alert('✅ Bienvenido ' + currentUser.nombre);
+                } else if (result && result.__raw) {
+                    alert('❌ Error al iniciar sesión: servidor respondió con HTML/text:\n\n' + result.__raw.slice(0,200));
+                } else if (result && result.__parseError) {
+                    alert('❌ Error al parsear JSON del servidor:\n' + (result.raw || '')); 
                 } else {
                     alert('❌ ' + (result.message || 'Error al iniciar sesión'));
                 }
