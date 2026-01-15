@@ -1378,9 +1378,12 @@ app.post('/api/clientes', async (req, res) => {
       const direccionVal = typeof direccion !== 'undefined' && direccion !== '' ? direccion : null;
       const observacionesVal = typeof observaciones !== 'undefined' && observaciones !== '' ? observaciones : null;
 
+      const params = [nombre, apellido, dni, telefonoVal, emailVal, direccionVal, observacionesVal];
+      console.log('cliente params:', params);
+
       const result = await q(
         'INSERT INTO clientes (nombre, apellido, dni, telefono, email, direccion, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [nombre, apellido, dni, telefonoVal, emailVal, direccionVal, observacionesVal]
+        params
       );
 
       res.status(201).json({
