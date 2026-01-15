@@ -27,6 +27,14 @@ app.get('/minuta-venta.html', (req, res) => res.sendFile(path.join(__dirname, 'p
 app.get('/minuta-directa.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minuta-directa.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
 
+// Forzar servir index.html actualizado
+app.get('/src/index.html', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
+app.get('/src/app.js', (req, res) => res.sendFile(path.join(__dirname, 'src', 'app.js')));
+app.get('/src/style.css', (req, res) => res.sendFile(path.join(__dirname, 'src', 'style.css')));
+
+// Ruta raíz actualizada
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
+
 // Versión actualizada - Minuta Profesional v2.1 - Force Update Railway - 2025-01-15
 console.log('🚀 Concesionaria App v2.1 - Minuta Profesional Activa - FORCE UPDATE');
 
