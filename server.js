@@ -26,6 +26,9 @@ app.get('/mobile-offline.html', (req, res) => res.sendFile(path.join(__dirname, 
 app.get('/minuta-venta.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minuta-venta.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
 
+// Versión actualizada - Minuta Profesional v2.0 - Login corregido - 2025-01-15
+console.log('🚀 Concesionaria App v2.0 - Minuta Profesional Activa');
+
 const dbConfig = {
   uri: "mysql://root:qWKfCJlRRctoiYmRnFNPetrmogGoZZCi@maglev.proxy.rlwy.net:51157/railway",
   waitForConnections: true,
