@@ -1382,10 +1382,12 @@ app.post('/api/clientes', async (req, res) => {
         cliente: { id: result.insertId, ...req.body }
       });
     } catch (err) {
-      if (String(err.message || '').toUpperCase().includes('DUPLICATE')) {
+      console.error('Error en POST /api/clientes:', err);
+      // MySQL duplicate entry
+      if (err && (err.code === 'ER_DUP_ENTRY' || String(err.message || '').toUpperCase().includes('DUPLICATE'))) {
         return res.status(400).json({ message: 'El DNI ya está registrado' });
       }
-      return res.status(500).json({ message: 'Error al guardar cliente' });
+      return res.status(500).json({ message: 'Error al guardar cliente', error: err.message });
     }
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
