@@ -30,6 +30,20 @@ app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'publi
 // Versión actualizada - Minuta Profesional v2.1 - Force Update Railway - 2025-01-15
 console.log('🚀 Concesionaria App v2.1 - Minuta Profesional Activa - FORCE UPDATE');
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    version: '2.1.0',
+    timestamp: new Date().toISOString(),
+    features: {
+      minuta_profesional: true,
+      login_corregido: true,
+      api_actualizada: true
+    }
+  });
+});
+
 const dbConfig = {
   uri: "mysql://root:qWKfCJlRRctoiYmRnFNPetrmogGoZZCi@maglev.proxy.rlwy.net:51157/railway",
   waitForConnections: true,
