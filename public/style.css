@@ -400,6 +400,31 @@ textarea {
   background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
 }
 
+/* Brand logo styles */
+.brand-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: inline-block;
+}
+
+@media (min-width: 768px) {
+  .brand-logo {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+/* Small circular thumbnail utility */
+.circular-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .usuario-card.inactive {
   border-color: #ffc107;
   background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
