@@ -543,6 +543,17 @@ async function initTables() {
     CONSTRAINT fk_susp_por FOREIGN KEY (suspendido_por) REFERENCES usuarios(id)
       ON DELETE RESTRICT ON UPDATE CASCADE
   ) ENGINE=InnoDB`);
+
+  await q(`CREATE TABLE IF NOT EXISTS minutas_detalladas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    datos_completos TEXT NOT NULL,
+    estado VARCHAR(50) DEFAULT 'borrador',
+    creado_por INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_minutas_det_creado_por FOREIGN KEY (creado_por) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 }
 
 // Asegurar columnas (equivalente ensureColumn PRAGMA en sqlite)
@@ -1479,6 +1490,105 @@ app.post('/api/minutas/:id/liberar-vehiculo', async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// Ruta para guardar minuta detallada (formulario completo)
+app.post('/api/minutas/detallada', async (req, res) => {
+  try {
+    const { 
+      lugar, fecha, 
+      comprador, vendedor, vehiculo, operacion, 
+      observaciones, fechaEntrega, gastosTransferencia, 
+      estado, usuario_id 
+    } = req.body;
+
+    if (!comprador || !vendedor || !vehiculo || !operacion) {
+      return res.status(400).json({ message: 'Datos incompletos' });
+    }
+
+    // Guardar minuta detallada en formato JSON
+    const minutaDetallada = JSON.stringify({
+      lugar, fecha,
+      comprador, vendedor, vehiculo, operacion,
+      observaciones, fechaEntrega, gastosTransferencia
+    });
+
+    const result = await q(
+      `INSERT INTO minutas_detalladas 
+       (datos_completos, estado, creado_por, created_at) 
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+      [minutaDetallada, estado || 'borrador', usuario_id]
+    );
+
+    await registrarAuditoria(
+      usuario_id,
+      'CREACION_MINUTA_DETALLADA',
+      'minutas_detalladas',
+      result.insertId,
+      null,
+      { vehiculo: vehiculo.marca + ' ' + vehiculo.modelo, comprador: comprador.nombre }
+    );
+
+    res.status(201).json({
+      message: 'Minuta detallada guardada correctamente',
+      minuta_id: result.insertId
+    });
+
+  } catch (error) {
+    console.error('Error al guardar minuta detallada:', error);
+    res.status(500).json({ message: 'Error al guardar minuta' });
+  }
+});
+
+// Obtener minutas detalladas
+app.get('/api/minutas/detalladas', async (req, res) => {
+  try {
+    const rows = await q(
+      `SELECT md.*, u.nombre as creado_por_nombre
+       FROM minutas_detalladas md
+       LEFT JOIN usuarios u ON md.creado_por = u.id
+       ORDER BY md.created_at DESC`
+    );
+    
+    // Parsear JSON de datos_completos
+    const minutas = rows.map(row => ({
+      ...row,
+      datos_completos: JSON.parse(row.datos_completos || '{}')
+    }));
+    
+    res.json(minutas);
+  } catch (error) {
+    console.error('Error al obtener minutas detalladas:', error);
+    res.status(500).json({ message: 'Error al obtener minutas' });
+  }
+});
+
+// Obtener una minuta detallada específica
+app.get('/api/minutas/detalladas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const row = await qFirst(
+      `SELECT md.*, u.nombre as creado_por_nombre
+       FROM minutas_detalladas md
+       LEFT JOIN usuarios u ON md.creado_por = u.id
+       WHERE md.id = ?`,
+      [id]
+    );
+    
+    if (!row) {
+      return res.status(404).json({ message: 'Minuta no encontrada' });
+    }
+    
+    const minuta = {
+      ...row,
+      datos_completos: JSON.parse(row.datos_completos || '{}')
+    };
+    
+    res.json(minuta);
+  } catch (error) {
+    console.error('Error al obtener minuta:', error);
+    res.status(500).json({ message: 'Error al obtener minuta' });
   }
 });
 

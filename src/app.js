@@ -517,3 +517,15 @@ function mostrarEstadisticasAlmacenamiento() {
   // Aquí se podría agregar una llamada al servidor para obtener estadísticas
   console.log('Obteniendo estadísticas de almacenamiento...');
 }
+
+// Función para abrir minuta profesional
+function abrirMinutaProfesional() {
+  // Guardar ID de usuario en localStorage para la minuta
+  if (currentUser) {
+    localStorage.setItem('userId', currentUser.id);
+    localStorage.setItem('userName', currentUser.nombre);
+  }
+  
+  // Abrir minuta en nueva ventana
+  window.open('http://localhost:4000/minuta-venta.html', '_blank', 'width=1000,height=800');
+}
