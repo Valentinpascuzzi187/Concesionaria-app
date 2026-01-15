@@ -1,8 +1,13 @@
+// server.js (versión MySQL/SQL)
+// Mantiene: mismas rutas, mismas respuestas/mensajes, misma lógica de negocio.
+// Cambios: todo lo que era sqlite3 (db.get/db.run/db.all/PRAGMA/copia .db) ahora es MySQL (pool + SQL).
+
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const mysql = require('mysql2/promise');
 const path = require('path');
 const XLSX = require('xlsx');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,240 +25,178 @@ app.get('/mobile-railway.html', (req, res) => res.sendFile(path.join(__dirname, 
 app.get('/mobile-offline.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-offline.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
 
-// Base de datos SQLite con respaldo automático
-const db = new sqlite3.Database('./concesionaria.db', (err) => {
-  if (err) {
-    console.error('Error al conectar con la base de datos:', err.message);
-  } else {
-    console.log('Conectado a la base de datos SQLite');
-    initTables();
-    // Crear usuario premium después de inicializar tablas
-    setTimeout(crearUsuarioPremium, 1000);
-    // Iniciar sistema de respaldo automático
-    setTimeout(iniciarSistemaRespaldo, 2000);
-  }
-});
+const dbConfig = {
+  uri: "mysql://root:qWKfCJlRRctoiYmRnFNPetrmogGoZZCi@maglev.proxy.rlwy.net:51157/railway",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
 
-app.post('/api/usuarios/crear-admin', (req, res) => {
+let pool;
+
+// Helpers MySQL
+async function q(sql, params = []) {
+  // SELECT => rows; INSERT/UPDATE/DELETE => result object
+  const [rows] = await pool.execute(sql, params);
+  return rows;
+}
+async function qFirst(sql, params = []) {
+  const rows = await q(sql, params);
+  return rows && rows.length ? rows[0] : null;
+}
+
+async function connectDB() {
   try {
-    const { usuario_premium_id, nombre, email, password } = req.body;
+    pool = await mysql.createPool(dbConfig.uri);
+    console.log('✅ Conectado a MySQL en Railway');
 
-    if (!usuario_premium_id || !nombre || !email || !password) {
-      return res.status(400).json({ message: 'Datos incompletos' });
-    }
-
-    db.get('SELECT id FROM usuarios WHERE id = ? AND es_premium = 1 AND habilitado = 1', [usuario_premium_id], (err, premiumRow) => {
-      if (err) return res.status(500).json({ message: 'Error en el servidor' });
-      if (!premiumRow) return res.status(403).json({ message: 'No autorizado' });
-
-      db.run(
-        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, 0, 1)',
-        [nombre, email, password, 'administrador'],
-        function(err) {
-          if (err) {
-            if (String(err.message || '').includes('UNIQUE')) {
-              return res.status(400).json({ message: 'El email ya está registrado' });
-            }
-            return res.status(500).json({ message: 'Error al crear administrador' });
-          }
-
-          registrarAuditoria(
-            usuario_premium_id,
-            'CREACION_ADMIN_LIMITADO',
-            'usuarios',
-            this.lastID,
-            null,
-            { nombre, email, rol: 'administrador' },
-            { ip_address: req.ip || req.connection.remoteAddress }
-          );
-
-          res.status(201).json({
-            message: 'Administrador creado',
-            user: { id: this.lastID, nombre, email, rol: 'administrador', es_premium: 0, habilitado: 1 }
-          });
-        }
-      );
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    // Inicializaciones
+    await initTables();               // crea tablas en MySQL
+    await ensureColumns();            // agrega columnas faltantes (equivalente a PRAGMA/ALTER)
+    await crearUsuarioPremium();      // crea premium si no existe
+    iniciarSistemaRespaldo();         // backup lógico (JSON) en MySQL
+  } catch (err) {
+    console.error('❌ Error al conectar con MySQL:', err.message);
   }
-});
+}
 
-// Sistema de respaldo automático
-const fs = require('fs');
+connectDB();
+
+/* =========================
+   BACKUP (MySQL)
+   - En sqlite se copiaba concesionaria.db.
+   - En MySQL no existe archivo .db para copiar.
+   - Mantenemos el mismo mensaje y flujo: respaldo automático.
+   - Implementación: export lógico a JSON y guardar en /backups.
+========================= */
 
 function iniciarSistemaRespaldo() {
   console.log('🔄 Iniciando sistema de respaldo automático...');
-  
-  // Crear directorio de backups si no existe
+
   const backupDir = path.join(__dirname, 'backups');
-  if (!fs.existsSync(backupDir)) {
-    fs.mkdirSync(backupDir, { recursive: true });
-  }
-  
-  // Respaldar cada 5 minutos
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
   setInterval(() => {
-    realizarRespaldoLocal();
-    // Aquí se podría integrar con Google Drive o GitHub
-    console.log('📦 Respaldo automático realizado:', new Date().toISOString());
-  }, 5 * 60 * 1000); // 5 minutos
-  
-  // Respaldar inmediatamente al inicio
-  realizarRespaldoLocal();
+    realizarRespaldoLocal()
+      .then(() => console.log('📦 Respaldo automático realizado:', new Date().toISOString()))
+      .catch(() => console.log('📦 Respaldo automático realizado:', new Date().toISOString()));
+  }, 5 * 60 * 1000);
+
+  realizarRespaldoLocal().catch(() => {});
 }
 
-function realizarRespaldoLocal() {
+async function realizarRespaldoLocal() {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupFile = path.join(__dirname, 'backups', `concesionaria_backup_${timestamp}.db`);
-    
-    // Copiar base de datos actual
-    fs.copyFileSync(path.join(__dirname, 'concesionaria.db'), backupFile);
-    
+    const backupFile = path.join(__dirname, 'backups', `concesionaria_backup_${timestamp}.json`);
+
+    const datos = await exportarDatosJSON();
+    fs.writeFileSync(backupFile, JSON.stringify(datos, null, 2), 'utf8');
+
     // Mantener solo los últimos 10 backups
     const backupDir = path.join(__dirname, 'backups');
     const files = fs.readdirSync(backupDir)
-      .filter(file => file.endsWith('.db'))
+      .filter(file => file.endsWith('.json'))
       .map(file => ({
         name: file,
         path: path.join(backupDir, file),
         time: fs.statSync(path.join(backupDir, file)).mtime
       }))
       .sort((a, b) => b.time - a.time);
-    
-    // Eliminar backups antiguos (mantener últimos 10)
+
     if (files.length > 10) {
       for (let i = 10; i < files.length; i++) {
         fs.unlinkSync(files[i].path);
         console.log('🗑️ Backup antiguo eliminado:', files[i].name);
       }
     }
-    
+
     console.log('✅ Respaldo local creado:', backupFile);
-    
-    // Registrar en auditoría
-    registrarAuditoria(1, 'RESPALDO_AUTOMATICO', 'sistema', null, null, { 
-      archivo: backupFile, 
-      timestamp: timestamp 
+
+    // Registrar en auditoría (mantenemos usuario_id=1 como en tu código)
+    await registrarAuditoria(1, 'RESPALDO_AUTOMATICO', 'sistema', null, null, {
+      archivo: backupFile,
+      timestamp: timestamp
     });
-    
+
   } catch (error) {
     console.error('❌ Error en respaldo automático:', error);
   }
 }
 
-// Función para exportar datos a formato JSON (para GitHub/Drive)
-function exportarDatosJSON() {
-  return new Promise((resolve, reject) => {
-    const datos = {
-      timestamp: new Date().toISOString(),
-      usuarios: [],
-      vehiculos: [],
-      clientes: [],
-      minutas: [],
-      auditoria: [],
-      tracking_sesiones: [],
-      tracking_navegacion: [],
-      tracking_acciones: [],
-      alertas_premium: [],
-      suspensiones: []
-    };
-    
-    let completed = 0;
-    const total = Object.keys(datos).length;
-    
-    // Exportar usuarios
-    db.all('SELECT * FROM usuarios', (err, rows) => {
-      if (!err) datos.usuarios = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar vehículos
-    db.all('SELECT * FROM vehiculos', (err, rows) => {
-      if (!err) datos.vehiculos = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar clientes
-    db.all('SELECT * FROM clientes', (err, rows) => {
-      if (!err) datos.clientes = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar minutas
-    db.all('SELECT * FROM minutas', (err, rows) => {
-      if (!err) datos.minutas = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar auditoría
-    db.all('SELECT * FROM auditoria', (err, rows) => {
-      if (!err) datos.auditoria = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar tracking sesiones
-    db.all('SELECT * FROM tracking_sesiones', (err, rows) => {
-      if (!err) datos.tracking_sesiones = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar tracking navegación
-    db.all('SELECT * FROM tracking_navegacion', (err, rows) => {
-      if (!err) datos.tracking_navegacion = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar tracking acciones
-    db.all('SELECT * FROM tracking_acciones', (err, rows) => {
-      if (!err) datos.tracking_acciones = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar alertas premium
-    db.all('SELECT * FROM alertas_premium', (err, rows) => {
-      if (!err) datos.alertas_premium = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-    
-    // Exportar suspensiones
-    db.all('SELECT * FROM suspensiones', (err, rows) => {
-      if (!err) datos.suspensiones = rows;
-      completed++;
-      if (completed === total) resolve(datos);
-    });
-  });
+/* =========================
+   EXPORT JSON (MySQL)
+========================= */
+
+async function exportarDatosJSON() {
+  const datos = {
+    timestamp: new Date().toISOString(),
+    usuarios: [],
+    vehiculos: [],
+    clientes: [],
+    minutas: [],
+    auditoria: [],
+    tracking_sesiones: [],
+    tracking_navegacion: [],
+    tracking_acciones: [],
+    alertas_premium: [],
+    suspensiones: []
+  };
+
+  // En paralelo
+  const [
+    usuarios,
+    vehiculos,
+    clientes,
+    minutas,
+    auditoria,
+    tracking_sesiones,
+    tracking_navegacion,
+    tracking_acciones,
+    alertas_premium,
+    suspensiones
+  ] = await Promise.all([
+    q('SELECT * FROM usuarios'),
+    q('SELECT * FROM vehiculos'),
+    q('SELECT * FROM clientes'),
+    q('SELECT * FROM minutas'),
+    q('SELECT * FROM auditoria'),
+    q('SELECT * FROM tracking_sesiones'),
+    q('SELECT * FROM tracking_navegacion'),
+    q('SELECT * FROM tracking_acciones'),
+    q('SELECT * FROM alertas_premium'),
+    q('SELECT * FROM suspensiones')
+  ]);
+
+  datos.usuarios = usuarios;
+  datos.vehiculos = vehiculos;
+  datos.clientes = clientes;
+  datos.minutas = minutas;
+  datos.auditoria = auditoria;
+  datos.tracking_sesiones = tracking_sesiones;
+  datos.tracking_navegacion = tracking_navegacion;
+  datos.tracking_acciones = tracking_acciones;
+  datos.alertas_premium = alertas_premium;
+  datos.suspensiones = suspensiones;
+
+  return datos;
 }
 
 // Ruta para exportar datos (solo admin premium)
 app.get('/api/exportar-datos', async (req, res) => {
   try {
     const datos = await exportarDatosJSON();
-    
-    // Guardar archivo JSON localmente
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const exportFile = path.join(__dirname, 'exports', `export_completo_${timestamp}.json`);
-    
-    // Crear directorio de exports si no existe
+
     const exportDir = path.join(__dirname, 'exports');
-    if (!fs.existsSync(exportDir)) {
-      fs.mkdirSync(exportDir, { recursive: true });
-    }
-    
+    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+
     fs.writeFileSync(exportFile, JSON.stringify(datos, null, 2));
-    
-    // Registrar auditoría
-    registrarAuditoria(1, 'EXPORTACION_DATOS', 'sistema', null, null, { 
-      archivo: exportFile, 
+
+    await registrarAuditoria(1, 'EXPORTACION_DATOS', 'sistema', null, null, {
+      archivo: exportFile,
       registros: {
         usuarios: datos.usuarios.length,
         vehiculos: datos.vehiculos.length,
@@ -262,7 +205,7 @@ app.get('/api/exportar-datos', async (req, res) => {
         auditoria: datos.auditoria.length
       }
     });
-    
+
     res.json({
       message: 'Datos exportados correctamente',
       archivo: exportFile,
@@ -279,7 +222,7 @@ app.get('/api/exportar-datos', async (req, res) => {
         suspensiones: datos.suspensiones.length
       }
     });
-    
+
   } catch (error) {
     console.error('Error al exportar datos:', error);
     res.status(500).json({ message: 'Error al exportar datos' });
@@ -290,21 +233,19 @@ app.get('/api/exportar-datos', async (req, res) => {
 app.post('/api/importar-datos', async (req, res) => {
   try {
     const { datos } = req.body;
-    
+
     if (!datos) {
       return res.status(400).json({ message: 'No se proporcionaron datos para importar' });
     }
-    
-    // Aquí iría la lógica para importar datos a la base de datos
-    // Por seguridad, esto debería requerir confirmación adicional
-    
-    registrarAuditoria(1, 'IMPORTACION_DATOS', 'sistema', null, null, { 
+
+    // Igual que tu código: "Sistema de importación listo"
+    await registrarAuditoria(1, 'IMPORTACION_DATOS', 'sistema', null, null, {
       timestamp: new Date().toISOString(),
       origen: 'importacion_manual'
     });
-    
+
     res.json({ message: 'Sistema de importación listo' });
-    
+
   } catch (error) {
     console.error('Error al importar datos:', error);
     res.status(500).json({ message: 'Error al importar datos' });
@@ -312,525 +253,472 @@ app.post('/api/importar-datos', async (req, res) => {
 });
 
 // Ruta para verificar/crear usuario premium (para depuración)
-app.get('/api/verificar-premium', (req, res) => {
-  const premiumEmail = 'admin@concesionaria.com';
-  
-  db.get('SELECT * FROM usuarios WHERE email = ?', [premiumEmail], (err, row) => {
-    if (err) {
-      return res.status(500).json({ message: 'Error en la base de datos', error: err.message });
-    }
-    
+app.get('/api/verificar-premium', async (req, res) => {
+  try {
+    const premiumEmail = 'admin@concesionaria.com';
+
+    const row = await qFirst('SELECT * FROM usuarios WHERE email = ?', [premiumEmail]);
+
     if (row) {
-      res.json({ 
+      res.json({
         message: 'Usuario premium encontrado',
         usuario: {
           id: row.id,
           nombre: row.nombre,
           email: row.email,
           rol: row.rol,
-          es_premium: row.es_premium,
-          habilitado: row.habilitado
+          es_premium: !!row.es_premium,
+          habilitado: !!row.habilitado
         }
       });
     } else {
-      // Crear usuario premium
-      db.run('INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)', 
-        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1], 
-        function(err) {
-          if (err) {
-            return res.status(500).json({ message: 'Error al crear usuario premium', error: err.message });
-          }
-          
-          res.json({ 
-            message: 'Usuario premium creado exitosamente',
-            usuario: {
-              id: this.lastID,
-              nombre: 'Dueño',
-              email: premiumEmail,
-              rol: 'administrador',
-              es_premium: true,
-              habilitado: true
-            }
-          });
-        }
+      const result = await q(
+        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)',
+        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1]
       );
+
+      res.json({
+        message: 'Usuario premium creado exitosamente',
+        usuario: {
+          id: result.insertId,
+          nombre: 'Dueño',
+          email: premiumEmail,
+          rol: 'administrador',
+          es_premium: true,
+          habilitado: true
+        }
+      });
     }
-  });
+  } catch (err) {
+    res.status(500).json({ message: 'Error en la base de datos', error: err.message });
+  }
 });
 
 // Ruta para exportar a Excel (descarga directa)
 app.get('/api/exportar-excel', async (req, res) => {
   try {
     const datos = await exportarDatosJSON();
-    
-    // Crear workbook de Excel
     const workbook = XLSX.utils.book_new();
-    
-    // Agregar cada tabla como una hoja
-    if (datos.usuarios && datos.usuarios.length > 0) {
-      const wsUsuarios = XLSX.utils.json_to_sheet(datos.usuarios);
-      XLSX.utils.book_append_sheet(workbook, wsUsuarios, 'Usuarios');
-    }
-    
-    if (datos.vehiculos && datos.vehiculos.length > 0) {
-      const wsVehiculos = XLSX.utils.json_to_sheet(datos.vehiculos);
-      XLSX.utils.book_append_sheet(workbook, wsVehiculos, 'Vehiculos');
-    }
-    
-    if (datos.clientes && datos.clientes.length > 0) {
-      const wsClientes = XLSX.utils.json_to_sheet(datos.clientes);
-      XLSX.utils.book_append_sheet(workbook, wsClientes, 'Clientes');
-    }
-    
-    if (datos.minutas && datos.minutas.length > 0) {
-      const wsMinutas = XLSX.utils.json_to_sheet(datos.minutas);
-      XLSX.utils.book_append_sheet(workbook, wsMinutas, 'Minutas');
-    }
-    
-    if (datos.auditoria && datos.auditoria.length > 0) {
-      const wsAuditoria = XLSX.utils.json_to_sheet(datos.auditoria);
-      XLSX.utils.book_append_sheet(workbook, wsAuditoria, 'Auditoria');
-    }
-    
-    if (datos.tracking_sesiones && datos.tracking_sesiones.length > 0) {
-      const wsSesiones = XLSX.utils.json_to_sheet(datos.tracking_sesiones);
-      XLSX.utils.book_append_sheet(workbook, wsSesiones, 'Sesiones');
-    }
-    
-    if (datos.tracking_acciones && datos.tracking_acciones.length > 0) {
-      const wsAcciones = XLSX.utils.json_to_sheet(datos.tracking_acciones);
-      XLSX.utils.book_append_sheet(workbook, wsAcciones, 'Acciones');
-    }
-    
-    // Generar buffer del archivo Excel
+
+    if (datos.usuarios?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.usuarios), 'Usuarios');
+    if (datos.vehiculos?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.vehiculos), 'Vehiculos');
+    if (datos.clientes?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.clientes), 'Clientes');
+    if (datos.minutas?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.minutas), 'Minutas');
+    if (datos.auditoria?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.auditoria), 'Auditoria');
+    if (datos.tracking_sesiones?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.tracking_sesiones), 'Sesiones');
+    if (datos.tracking_acciones?.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(datos.tracking_acciones), 'Acciones');
+
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    
-    // Enviar archivo para descarga
+
     const timestamp = new Date().toISOString().split('T')[0];
     res.setHeader('Content-Disposition', `attachment; filename=concesionaria_${timestamp}.xlsx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(excelBuffer);
-    
-    // Registrar auditoría
-    registrarAuditoria(1, 'EXPORTACION_EXCEL', 'sistema', null, null, { timestamp });
-    
+
+    await registrarAuditoria(1, 'EXPORTACION_EXCEL', 'sistema', null, null, { timestamp });
+
   } catch (error) {
     console.error('Error al exportar Excel:', error);
     res.status(500).json({ message: 'Error al exportar Excel' });
   }
 });
 
-// Inicializar tablas
-function initTables() {
-  // Tabla de usuarios con roles mejorados
-  db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    rol TEXT DEFAULT 'vendedor',
-    habilitado BOOLEAN DEFAULT 1,
-    telefono TEXT,
-    es_premium BOOLEAN DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+/* =========================
+   INIT TABLES (MySQL)
+========================= */
 
-  // Tabla de vehículos mejorada con soft delete
-  db.run(`CREATE TABLE IF NOT EXISTS vehiculos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tipo TEXT NOT NULL,
-    marca TEXT NOT NULL,
-    modelo TEXT NOT NULL,
-    version TEXT,
-    anio INTEGER NOT NULL,
-    condicion TEXT NOT NULL,
-    precio REAL NOT NULL,
-    dominio TEXT,
-    estado TEXT DEFAULT 'disponible',
-    eliminado BOOLEAN DEFAULT 0,
-    eliminado_por INTEGER,
-    fecha_eliminacion DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (eliminado_por) REFERENCES usuarios (id)
-  )`);
+async function initTables() {
+  // Nota:
+  // - Usamos InnoDB para FKs.
+  // - Booleans => TINYINT(1).
+  // - JSON => TEXT (para mantener compatibilidad con tu sqlite TEXT).
+  // - CURRENT_TIMESTAMP + ON UPDATE donde aplica.
 
-  // Tabla de clientes con soft delete
-  db.run(`CREATE TABLE IF NOT EXISTS clientes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre TEXT NOT NULL,
-    apellido TEXT NOT NULL,
-    dni TEXT UNIQUE NOT NULL,
-    telefono TEXT,
-    email TEXT,
-    direccion TEXT,
+  await q(`CREATE TABLE IF NOT EXISTS usuarios (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    rol VARCHAR(50) DEFAULT 'vendedor',
+    habilitado TINYINT(1) DEFAULT 1,
+    telefono VARCHAR(50),
+    es_premium TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB`);
+
+  await q(`CREATE TABLE IF NOT EXISTS vehiculos (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    tipo VARCHAR(100) NOT NULL,
+    marca VARCHAR(100) NOT NULL,
+    modelo VARCHAR(100) NOT NULL,
+    version VARCHAR(100),
+    anio INT NOT NULL,
+    condicion VARCHAR(50) NOT NULL,
+    precio DECIMAL(12,2) NOT NULL,
+    dominio VARCHAR(50),
+    estado VARCHAR(50) DEFAULT 'disponible',
+    eliminado TINYINT(1) DEFAULT 0,
+    eliminado_por INT NULL,
+    fecha_eliminacion DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_vehiculos_eliminado_por FOREIGN KEY (eliminado_por) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
+
+  await q(`CREATE TABLE IF NOT EXISTS clientes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(255) NOT NULL,
+    apellido VARCHAR(255) NOT NULL,
+    dni VARCHAR(50) NOT NULL UNIQUE,
+    telefono VARCHAR(50),
+    email VARCHAR(255),
+    direccion VARCHAR(255),
     observaciones TEXT,
-    eliminado BOOLEAN DEFAULT 0,
-    eliminado_por INTEGER,
-    fecha_eliminacion DATETIME,
+    eliminado TINYINT(1) DEFAULT 0,
+    eliminado_por INT NULL,
+    fecha_eliminacion DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (eliminado_por) REFERENCES usuarios (id)
-  )`);
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_clientes_eliminado_por FOREIGN KEY (eliminado_por) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de minutas con soft delete
-  db.run(`CREATE TABLE IF NOT EXISTS minutas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vehiculo_id INTEGER NOT NULL,
-    cliente_id INTEGER NOT NULL,
-    vendedor_id INTEGER NOT NULL,
-    precio_original REAL NOT NULL,
-    precio_final REAL NOT NULL,
-    estado TEXT DEFAULT 'iniciada',
+  await q(`CREATE TABLE IF NOT EXISTS minutas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    vehiculo_id INT NOT NULL,
+    cliente_id INT NOT NULL,
+    vendedor_id INT NOT NULL,
+    precio_original DECIMAL(12,2) NOT NULL,
+    precio_final DECIMAL(12,2) NOT NULL,
+    estado VARCHAR(50) DEFAULT 'iniciada',
     observaciones TEXT,
-    eliminado BOOLEAN DEFAULT 0,
-    eliminado_por INTEGER,
-    fecha_eliminacion DATETIME,
+    eliminado TINYINT(1) DEFAULT 0,
+    eliminado_por INT NULL,
+    fecha_eliminacion DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (vehiculo_id) REFERENCES vehiculos (id),
-    FOREIGN KEY (cliente_id) REFERENCES clientes (id),
-    FOREIGN KEY (vendedor_id) REFERENCES usuarios (id),
-    FOREIGN KEY (eliminado_por) REFERENCES usuarios (id)
-  )`);
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_minutas_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_minutas_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_minutas_vendedor FOREIGN KEY (vendedor_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_minutas_eliminado_por FOREIGN KEY (eliminado_por) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de auditoría mejorada
-  db.run(`CREATE TABLE IF NOT EXISTS auditoria (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    accion TEXT NOT NULL,
-    tabla_afectada TEXT,
-    registro_id INTEGER,
+  await q(`CREATE TABLE IF NOT EXISTS auditoria (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_id INT NOT NULL,
+    accion VARCHAR(255) NOT NULL,
+    tabla_afectada VARCHAR(255),
+    registro_id INT NULL,
     datos_anteriores TEXT,
     datos_nuevos TEXT,
-    ip_address TEXT,
+    ip_address VARCHAR(100),
     fecha_accion DATETIME DEFAULT CURRENT_TIMESTAMP,
-    notificado_premium BOOLEAN DEFAULT 0,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
-  )`);
+    notificado_premium TINYINT(1) DEFAULT 0,
+    dispositivo_id VARCHAR(255),
+    dispositivo_info TEXT,
+    fecha_dispositivo DATETIME,
+    CONSTRAINT fk_auditoria_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de notificaciones para usuario premium
-  db.run(`CREATE TABLE IF NOT EXISTS notificaciones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_premium_id INTEGER NOT NULL,
-    titulo TEXT NOT NULL,
+  await q(`CREATE TABLE IF NOT EXISTS notificaciones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_premium_id INT NOT NULL,
+    titulo VARCHAR(255) NOT NULL,
     mensaje TEXT NOT NULL,
-    tipo TEXT NOT NULL,
-    leida BOOLEAN DEFAULT 0,
+    tipo VARCHAR(100) NOT NULL,
+    leida TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_premium_id) REFERENCES usuarios (id)
-  )`);
+    CONSTRAINT fk_notificaciones_premium FOREIGN KEY (usuario_premium_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  db.run(`CREATE TABLE IF NOT EXISTS dispositivos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER,
-    mac_address TEXT,
-    dispositivo_id TEXT UNIQUE,
-    modelo TEXT,
-    plataforma TEXT,
-    navegador TEXT,
+  await q(`CREATE TABLE IF NOT EXISTS dispositivos (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_id INT NULL,
+    mac_address VARCHAR(255),
+    dispositivo_id VARCHAR(255) UNIQUE,
+    modelo VARCHAR(255),
+    plataforma VARCHAR(255),
+    navegador VARCHAR(255),
     fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_ultimo_acceso DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-  )`);
+    CONSTRAINT fk_dispositivos_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de tracking de sesiones y actividad
-  db.run(`CREATE TABLE IF NOT EXISTS tracking_sesiones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER,
+  await q(`CREATE TABLE IF NOT EXISTS tracking_sesiones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_id INT NULL,
     fecha_login DATETIME DEFAULT CURRENT_TIMESTAMP,
-    fecha_logout DATETIME,
-    ip_address TEXT,
+    fecha_logout DATETIME NULL,
+    ip_address VARCHAR(100),
     user_agent TEXT,
-    dispositivo_id TEXT,
+    dispositivo_id VARCHAR(255),
     dispositivo_info TEXT,
-    duracion_segundos INTEGER,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-  )`);
+    duracion_segundos INT,
+    CONSTRAINT fk_tracking_sesiones_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  db.serialize(() => {
-    const ensureColumn = (table, column, definition) => {
-      db.all(`PRAGMA table_info(${table})`, (err, rows) => {
-        if (err) return;
-        const exists = rows && rows.some(r => r.name === column);
-        if (!exists) {
-          db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-        }
-      });
-    };
-
-    ensureColumn('auditoria', 'dispositivo_id', 'TEXT');
-    ensureColumn('auditoria', 'dispositivo_info', 'TEXT');
-    ensureColumn('auditoria', 'fecha_dispositivo', 'DATETIME');
-
-    ensureColumn('tracking_sesiones', 'dispositivo_id', 'TEXT');
-    ensureColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
-  });
-
-  // Tabla de tracking de navegación detallada
-  db.run(`CREATE TABLE IF NOT EXISTS tracking_navegacion (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sesion_id INTEGER NOT NULL,
-    usuario_id INTEGER NOT NULL,
-    seccion_visitada TEXT,
+  await q(`CREATE TABLE IF NOT EXISTS tracking_navegacion (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    sesion_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    seccion_visitada VARCHAR(255),
     fecha_visita DATETIME DEFAULT CURRENT_TIMESTAMP,
-    tiempo_en_seccion INTEGER,
-    ip_address TEXT,
-    accion TEXT,
+    tiempo_en_seccion INT,
+    ip_address VARCHAR(100),
+    accion VARCHAR(255),
     detalles TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sesion_id) REFERENCES tracking_sesiones (id),
-    FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
-  )`);
+    CONSTRAINT fk_tracking_nav_sesion FOREIGN KEY (sesion_id) REFERENCES tracking_sesiones(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_tracking_nav_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de tracking de formularios y acciones
-  db.run(`CREATE TABLE IF NOT EXISTS tracking_acciones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    sesion_id INTEGER,
-    tipo_accion TEXT, -- 'login', 'logout', 'formulario', 'vista', 'creacion', 'modificacion', 'eliminacion'
-    modulo TEXT, -- 'vehiculos', 'clientes', 'minutas', 'pagos'
+  await q(`CREATE TABLE IF NOT EXISTS tracking_acciones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_id INT NOT NULL,
+    sesion_id INT NULL,
+    tipo_accion VARCHAR(100),
+    modulo VARCHAR(100),
     datos_accion TEXT,
-    ip_address TEXT,
+    ip_address VARCHAR(100),
     fecha_accion DATETIME DEFAULT CURRENT_TIMESTAMP,
-    notificado_premium BOOLEAN DEFAULT 0,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios (id),
-    FOREIGN KEY (sesion_id) REFERENCES tracking_sesiones (id)
-  )`);
+    notificado_premium TINYINT(1) DEFAULT 0,
+    CONSTRAINT fk_tracking_acciones_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_tracking_acciones_sesion FOREIGN KEY (sesion_id) REFERENCES tracking_sesiones(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de alertas para el admin premium
-  db.run(`CREATE TABLE IF NOT EXISTS alertas_premium (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_premium_id INTEGER NOT NULL,
-    titulo TEXT NOT NULL,
+  await q(`CREATE TABLE IF NOT EXISTS alertas_premium (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_premium_id INT NOT NULL,
+    titulo VARCHAR(255) NOT NULL,
     mensaje TEXT NOT NULL,
-    tipo_alerta TEXT, -- 'login_usuario', 'formulario_enviado', 'pagina_visitada', 'accion_critica'
-    usuario_afectado_id INTEGER,
+    tipo_alerta VARCHAR(100),
+    usuario_afectado_id INT NULL,
     datos_adicionales TEXT,
-    leida BOOLEAN DEFAULT 0,
+    leida TINYINT(1) DEFAULT 0,
     fecha_alerta DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_premium_id) REFERENCES usuarios (id),
-    FOREIGN KEY (usuario_afectado_id) REFERENCES usuarios (id)
-  )`);
+    CONSTRAINT fk_alertas_premium_usuario FOREIGN KEY (usuario_premium_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_alertas_premium_afectado FOREIGN KEY (usuario_afectado_id) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de historial de cambios (versión de datos)
-  db.run(`CREATE TABLE IF NOT EXISTS historial_datos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tabla_afectada TEXT NOT NULL,
-    registro_id INTEGER NOT NULL,
-    campo_modificado TEXT NOT NULL,
+  await q(`CREATE TABLE IF NOT EXISTS historial_datos (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    tabla_afectada VARCHAR(255) NOT NULL,
+    registro_id INT NOT NULL,
+    campo_modificado VARCHAR(255) NOT NULL,
     valor_anterior TEXT,
     valor_nuevo TEXT,
-    modificado_por INTEGER NOT NULL,
+    modificado_por INT NOT NULL,
     fecha_modificacion DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (modificado_por) REFERENCES usuarios (id)
-  )`);
+    CONSTRAINT fk_historial_modificado_por FOREIGN KEY (modificado_por) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 
-  // Tabla de suspensiones
-  db.run(`CREATE TABLE IF NOT EXISTS suspensiones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    motivo TEXT NOT NULL,
+  await q(`CREATE TABLE IF NOT EXISTS suspensiones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    usuario_id INT NOT NULL,
+    motivo VARCHAR(255) NOT NULL,
     mensaje TEXT,
-    duracion TEXT,
-    suspendido_por INTEGER NOT NULL,
+    duracion VARCHAR(100),
+    suspendido_por INT NOT NULL,
     fecha_suspension DATETIME DEFAULT CURRENT_TIMESTAMP,
-    fecha_reactivacion DATETIME,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios (id),
-    FOREIGN KEY (suspendido_por) REFERENCES usuarios (id)
-  )`);
+    fecha_reactivacion DATETIME NULL,
+    CONSTRAINT fk_susp_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_susp_por FOREIGN KEY (suspendido_por) REFERENCES usuarios(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 }
 
-// Crear usuario premium automáticamente
-function crearUsuarioPremium() {
-  const premiumEmail = 'admin@concesionaria.com'; // Email del usuario premium
-  
-  db.get('SELECT id FROM usuarios WHERE email = ?', [premiumEmail], (err, row) => {
-    if (!err && !row) {
-      // Crear usuario premium
-      db.run('INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)', 
-        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1], 
-        function(err) {
-          if (!err) {
-            console.log('✅ Usuario premium creado exitosamente');
-            console.log(`📧 Email: ${premiumEmail}`);
-            console.log('🔑 Password: Halcon2716@');
-            console.log('👤 Rol: Administrador Premium');
-            
-            // Registrar auditoría
-            registrarAuditoria(this.lastID, 'CREACION_USUARIO_PREMIUM', 'usuarios', this.lastID, null, { 
-              nombre: 'Dueño', 
-              email: premiumEmail, 
-              rol: 'administrador', 
-              es_premium: true 
-            });
-          } else {
-            console.error('❌ Error al crear usuario premium:', err);
-          }
-        }
+// Asegurar columnas (equivalente ensureColumn PRAGMA en sqlite)
+async function ensureColumns() {
+  // Ya creamos estas columnas en auditoria/tracking_sesiones arriba, pero lo dejamos por compatibilidad
+  // por si tu BD ya existía sin columnas.
+  async function colExists(table, column) {
+    const row = await qFirst(
+      `SELECT 1 AS ok
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+       LIMIT 1`,
+      [table, column]
+    );
+    return !!row;
+  }
+
+  async function addColumn(table, column, definition) {
+    await q(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  }
+
+  // auditoria
+  if (!(await colExists('auditoria', 'dispositivo_id'))) await addColumn('auditoria', 'dispositivo_id', 'VARCHAR(255)');
+  if (!(await colExists('auditoria', 'dispositivo_info'))) await addColumn('auditoria', 'dispositivo_info', 'TEXT');
+  if (!(await colExists('auditoria', 'fecha_dispositivo'))) await addColumn('auditoria', 'fecha_dispositivo', 'DATETIME');
+
+  // tracking_sesiones
+  if (!(await colExists('tracking_sesiones', 'dispositivo_id'))) await addColumn('tracking_sesiones', 'dispositivo_id', 'VARCHAR(255)');
+  if (!(await colExists('tracking_sesiones', 'dispositivo_info'))) await addColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
+}
+
+/* =========================
+   CREAR USUARIO PREMIUM
+========================= */
+
+async function crearUsuarioPremium() {
+  const premiumEmail = 'admin@concesionaria.com';
+
+  try {
+    const row = await qFirst('SELECT id FROM usuarios WHERE email = ?', [premiumEmail]);
+    if (!row) {
+      const result = await q(
+        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)',
+        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1]
       );
-    } else if (!err && row) {
+
+      console.log('✅ Usuario premium creado exitosamente');
+      console.log(`📧 Email: ${premiumEmail}`);
+      console.log('🔑 Password: Halcon2716@');
+      console.log('👤 Rol: Administrador Premium');
+
+      await registrarAuditoria(result.insertId, 'CREACION_USUARIO_PREMIUM', 'usuarios', result.insertId, null, {
+        nombre: 'Dueño',
+        email: premiumEmail,
+        rol: 'administrador',
+        es_premium: true
+      });
+    } else {
       console.log('✅ Usuario premium ya existe');
-    } else if (err) {
-      console.error('❌ Error verificando usuario premium:', err);
     }
-  });
-}
-
-// Función para registrar dispositivo
-function registrarDispositivo(usuarioId, dispositivoInfo) {
-  return new Promise((resolve, reject) => {
-    const { dispositivo_id, mac_address, modelo, plataforma, navegador } = dispositivoInfo;
-    
-    // Verificar si el dispositivo ya existe
-    db.get('SELECT id FROM dispositivos WHERE dispositivo_id = ?', [dispositivo_id], (err, row) => {
-      if (err) {
-        return reject(err);
-      }
-      
-      if (row) {
-        // Actualizar último acceso
-        db.run('UPDATE dispositivos SET fecha_ultimo_acceso = CURRENT_TIMESTAMP WHERE dispositivo_id = ?', 
-          [dispositivo_id], (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(row.id);
-          }
-        });
-      } else {
-        // Crear nuevo dispositivo
-        db.run('INSERT INTO dispositivos (usuario_id, mac_address, dispositivo_id, modelo, plataforma, navegador) VALUES (?, ?, ?, ?, ?, ?)', 
-          [usuarioId, mac_address, dispositivo_id, modelo, plataforma, navegador], 
-          function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(this.lastID);
-          }
-        });
-      }
-    });
-  });
-}
-
-// Funciones de tracking y vigilancia
-function registrarSesion(usuarioId, ipAddress, userAgent, dispositivoInfo = {}) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      INSERT INTO tracking_sesiones (usuario_id, fecha_login, ip_address, user_agent, dispositivo_id, dispositivo_info)
-      VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
-    `;
-
-    const dispositivoId = dispositivoInfo && dispositivoInfo.dispositivo_id ? dispositivoInfo.dispositivo_id : null;
-    db.run(query, [usuarioId, ipAddress, userAgent, dispositivoId, JSON.stringify(dispositivoInfo)], function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(this.lastID);
-      }
-    });
-  });
-}
-
-function cerrarSesion(sesionId) {
-  return new Promise((resolve, reject) => {
-    // Calcular duración
-    db.get('SELECT fecha_login FROM tracking_sesiones WHERE id = ?', [sesionId], (err, row) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      
-      if (row) {
-        const duracion = Math.floor((Date.now() - new Date(row.fecha_login).getTime()) / 1000);
-        
-        const query = `
-          UPDATE tracking_sesiones 
-          SET fecha_logout = CURRENT_TIMESTAMP, duracion_segundos = ?
-          WHERE id = ?
-        `;
-        
-        db.run(query, [duracion, sesionId], function(err) {
-          if (err) reject(err);
-          else resolve();
-        });
-      } else {
-        resolve();
-      }
-    });
-  });
-}
-
-function registrarNavegacion(sesionId, usuarioId, seccion, accion, detalles, ipAddress) {
-  const query = `
-    INSERT INTO tracking_navegacion (sesion_id, usuario_id, seccion_visitada, accion, detalles, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [sesionId, usuarioId, seccion, accion, detalles, ipAddress]);
-  
-  // Crear alerta para el admin premium si no es el usuario premium
-  if (usuarioId) {
-    db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId], (err, row) => {
-      if (!err && row && !row.es_premium) {
-        // Buscar usuario premium y alertar
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearAlertaPremium(premiumUser.id, 'Navegación Detectada', 
-              `Usuario ${usuarioId} visitó: ${seccion} - ${accion}`, 
-              'pagina_visitada', usuarioId, { seccion, accion, detalles });
-          }
-        });
-      }
-    });
+  } catch (err) {
+    console.error('❌ Error verificando usuario premium:', err);
   }
 }
 
-function registrarAccion(usuarioId, sesionId, tipoAccion, modulo, datosAccion, ipAddress) {
-  const query = `
-    INSERT INTO tracking_acciones (usuario_id, sesion_id, tipo_accion, modulo, datos_accion, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [usuarioId, sesionId, tipoAccion, modulo, datosAccion, ipAddress]);
-  
-  // Crear alerta para el admin premium si no es el usuario premium
-  if (usuarioId) {
-    db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId], (err, row) => {
-      if (!err && row && !row.es_premium) {
-        // Buscar usuario premium y alertar
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearAlertaPremium(premiumUser.id, 'Acción Detectada', 
-              `Usuario ${usuarioId} realizó: ${tipoAccion} en ${modulo}`, 
-              'accion_critica', usuarioId, { tipoAccion, modulo, datosAccion });
-          }
-        });
-      }
-    });
+/* =========================
+   DISPOSITIVOS / TRACKING
+========================= */
+
+async function registrarDispositivo(usuarioId, dispositivoInfo) {
+  const { dispositivo_id, mac_address, modelo, plataforma, navegador } = dispositivoInfo;
+
+  const existing = await qFirst('SELECT id FROM dispositivos WHERE dispositivo_id = ?', [dispositivo_id]);
+  if (existing) {
+    await q('UPDATE dispositivos SET fecha_ultimo_acceso = CURRENT_TIMESTAMP WHERE dispositivo_id = ?', [dispositivo_id]);
+    return existing.id;
+  } else {
+    const result = await q(
+      'INSERT INTO dispositivos (usuario_id, mac_address, dispositivo_id, modelo, plataforma, navegador) VALUES (?, ?, ?, ?, ?, ?)',
+      [usuarioId, mac_address, dispositivo_id, modelo, plataforma, navegador]
+    );
+    return result.insertId;
   }
 }
 
-function crearAlertaPremium(usuarioPremiumId, titulo, mensaje, tipoAlerta, usuarioAfectadoId, datosAdicionales) {
-  const query = `
-    INSERT INTO alertas_premium (usuario_premium_id, titulo, mensaje, tipo_alerta, usuario_afectado_id, datos_adicionales)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [usuarioPremiumId, titulo, mensaje, tipoAlerta, usuarioAfectadoId, JSON.stringify(datosAdicionales)]);
+async function registrarSesion(usuarioId, ipAddress, userAgent, dispositivoInfo = {}) {
+  const dispositivoId = dispositivoInfo && dispositivoInfo.dispositivo_id ? dispositivoInfo.dispositivo_id : null;
+  const result = await q(
+    `INSERT INTO tracking_sesiones (usuario_id, fecha_login, ip_address, user_agent, dispositivo_id, dispositivo_info)
+     VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)`,
+    [usuarioId, ipAddress, userAgent, dispositivoId, JSON.stringify(dispositivoInfo)]
+  );
+  return result.insertId;
 }
 
-// Funciones de auditoría y control
-function registrarAuditoria(usuarioId, accion, tablaAfectada, registroId, arg5 = null, arg6 = null, arg7 = null) {
+async function cerrarSesion(sesionId) {
+  const row = await qFirst('SELECT fecha_login FROM tracking_sesiones WHERE id = ?', [sesionId]);
+  if (!row) return;
+
+  const duracion = Math.floor((Date.now() - new Date(row.fecha_login).getTime()) / 1000);
+  await q(
+    `UPDATE tracking_sesiones
+     SET fecha_logout = CURRENT_TIMESTAMP, duracion_segundos = ?
+     WHERE id = ?`,
+    [duracion, sesionId]
+  );
+}
+
+async function registrarNavegacion(sesionId, usuarioId, seccion, accion, detalles, ipAddress) {
+  await q(
+    `INSERT INTO tracking_navegacion (sesion_id, usuario_id, seccion_visitada, accion, detalles, ip_address)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [sesionId, usuarioId, seccion, accion, detalles, ipAddress]
+  );
+
+  if (usuarioId) {
+    const row = await qFirst('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId]);
+    if (row && !row.es_premium) {
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          'Navegación Detectada',
+          `Usuario ${usuarioId} visitó: ${seccion} - ${accion}`,
+          'pagina_visitada',
+          usuarioId,
+          { seccion, accion, detalles }
+        );
+      }
+    }
+  }
+}
+
+async function registrarAccion(usuarioId, sesionId, tipoAccion, modulo, datosAccion, ipAddress) {
+  await q(
+    `INSERT INTO tracking_acciones (usuario_id, sesion_id, tipo_accion, modulo, datos_accion, ip_address)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [usuarioId, sesionId, tipoAccion, modulo, datosAccion, ipAddress]
+  );
+
+  if (usuarioId) {
+    const row = await qFirst('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId]);
+    if (row && !row.es_premium) {
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          'Acción Detectada',
+          `Usuario ${usuarioId} realizó: ${tipoAccion} en ${modulo}`,
+          'accion_critica',
+          usuarioId,
+          { tipoAccion, modulo, datosAccion }
+        );
+      }
+    }
+  }
+}
+
+async function crearAlertaPremium(usuarioPremiumId, titulo, mensaje, tipoAlerta, usuarioAfectadoId, datosAdicionales) {
+  await q(
+    `INSERT INTO alertas_premium (usuario_premium_id, titulo, mensaje, tipo_alerta, usuario_afectado_id, datos_adicionales)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [usuarioPremiumId, titulo, mensaje, tipoAlerta, usuarioAfectadoId, JSON.stringify(datosAdicionales)]
+  );
+}
+
+/* =========================
+   AUDITORÍA / NOTIFICACIONES
+========================= */
+
+async function registrarAuditoria(usuarioId, accion, tablaAfectada, registroId, arg5 = null, arg6 = null, arg7 = null) {
   let datosAnteriores = null;
   let datosNuevos = null;
   let meta = {};
 
-  if (arg7 && typeof arg7 === 'object') {
-    meta = arg7;
-  }
+  if (arg7 && typeof arg7 === 'object') meta = arg7;
 
   // Firma legacy A: (usuarioId, accion, tabla, registroId, sesionId, detalles)
   // Firma legacy B: (usuarioId, accion, tabla, registroId, datosAnteriores, datosNuevos)
@@ -842,145 +730,178 @@ function registrarAuditoria(usuarioId, accion, tablaAfectada, registroId, arg5 =
     datosNuevos = arg6;
   }
 
-  const query = `
-    INSERT INTO auditoria (usuario_id, accion, tabla_afectada, registro_id, datos_anteriores, datos_nuevos, ip_address, dispositivo_id, dispositivo_info, fecha_dispositivo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
   const ipAddress = meta.ip_address || null;
   const dispositivoId = meta.dispositivo_id || (meta.dispositivo_info && meta.dispositivo_info.dispositivo_id) || null;
   const dispositivoInfo = meta.dispositivo_info ? JSON.stringify(meta.dispositivo_info) : null;
   const fechaDispositivo = meta.fecha_dispositivo || (meta.dispositivo_info && meta.dispositivo_info.fecha_dispositivo) || null;
 
-  db.run(
-    query,
-    [
-      usuarioId,
-      accion,
-      tablaAfectada,
-      registroId,
-      JSON.stringify(datosAnteriores ?? null),
-      JSON.stringify(datosNuevos ?? null),
-      ipAddress,
-      dispositivoId,
-      dispositivoInfo,
-      fechaDispositivo
-    ],
-    (err) => {
-      if (err) {
-        console.error('Error al registrar auditoría:', err);
-        return;
-      }
+  try {
+    await q(
+      `INSERT INTO auditoria
+        (usuario_id, accion, tabla_afectada, registro_id, datos_anteriores, datos_nuevos, ip_address, dispositivo_id, dispositivo_info, fecha_dispositivo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        usuarioId,
+        accion,
+        tablaAfectada,
+        registroId,
+        JSON.stringify(datosAnteriores ?? null),
+        JSON.stringify(datosNuevos ?? null),
+        ipAddress,
+        dispositivoId,
+        dispositivoInfo,
+        fechaDispositivo
+      ]
+    );
 
-      if (usuarioId) {
-        db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId], (err, row) => {
-          if (!err && row && !row.es_premium) {
-            db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-              if (!err && premiumUser) {
-                crearNotificacion(
-                  premiumUser.id,
-                  'Cambio Registrado',
-                  `El usuario ${usuarioId} realizó: ${accion} en ${tablaAfectada}`,
-                  'auditoria'
-                );
-              }
-            });
-          }
-        });
+    if (usuarioId) {
+      const row = await qFirst('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId]);
+      if (row && !row.es_premium) {
+        const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+        if (premiumUser) {
+          await crearNotificacion(
+            premiumUser.id,
+            'Cambio Registrado',
+            `El usuario ${usuarioId} realizó: ${accion} en ${tablaAfectada}`,
+            'auditoria'
+          );
+        }
       }
     }
+  } catch (err) {
+    console.error('Error al registrar auditoría:', err);
+  }
+}
+
+async function crearNotificacion(usuarioPremiumId, titulo, mensaje, tipo) {
+  await q(
+    `INSERT INTO notificaciones (usuario_premium_id, titulo, mensaje, tipo)
+     VALUES (?, ?, ?, ?)`,
+    [usuarioPremiumId, titulo, mensaje, tipo]
   );
 }
 
-function crearNotificacion(usuarioPremiumId, titulo, mensaje, tipo) {
-  const query = `
-    INSERT INTO notificaciones (usuario_premium_id, titulo, mensaje, tipo)
-    VALUES (?, ?, ?, ?)
-  `;
-  
-  db.run(query, [usuarioPremiumId, titulo, mensaje, tipo]);
+async function registrarHistorial(tablaAfectada, registroId, campoModificado, valorAnterior, valorNuevo, modificadoPor) {
+  await q(
+    `INSERT INTO historial_datos (tabla_afectada, registro_id, campo_modificado, valor_anterior, valor_nuevo, modificado_por)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [tablaAfectada, registroId, campoModificado, valorAnterior, valorNuevo, modificadoPor]
+  );
 }
 
-function registrarHistorial(tablaAfectada, registroId, campoModificado, valorAnterior, valorNuevo, modificadoPor) {
-  const query = `
-    INSERT INTO historial_datos (tabla_afectada, registro_id, campo_modificado, valor_anterior, valor_nuevo, modificado_por)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(query, [tablaAfectada, registroId, campoModificado, valorAnterior, valorNuevo, modificadoPor]);
-}
+/* =========================
+   RUTA: CREAR ADMIN LIMITADO
+========================= */
 
-// Rutas de autenticación
+app.post('/api/usuarios/crear-admin', async (req, res) => {
+  try {
+    const { usuario_premium_id, nombre, email, password } = req.body;
+
+    if (!usuario_premium_id || !nombre || !email || !password) {
+      return res.status(400).json({ message: 'Datos incompletos' });
+    }
+
+    const premiumRow = await qFirst(
+      'SELECT id FROM usuarios WHERE id = ? AND es_premium = 1 AND habilitado = 1',
+      [usuario_premium_id]
+    );
+
+    if (!premiumRow) return res.status(403).json({ message: 'No autorizado' });
+
+    try {
+      const result = await q(
+        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, 0, 1)',
+        [nombre, email, password, 'administrador']
+      );
+
+      await registrarAuditoria(
+        usuario_premium_id,
+        'CREACION_ADMIN_LIMITADO',
+        'usuarios',
+        result.insertId,
+        null,
+        { nombre, email, rol: 'administrador' },
+        { ip_address: req.ip || (req.connection && req.connection.remoteAddress) }
+      );
+
+      res.status(201).json({
+        message: 'Administrador creado',
+        user: { id: result.insertId, nombre, email, rol: 'administrador', es_premium: 0, habilitado: 1 }
+      });
+    } catch (err) {
+      if (String(err.message || '').toUpperCase().includes('DUPLICATE') || String(err.message || '').includes('UNIQUE')) {
+        return res.status(400).json({ message: 'El email ya está registrado' });
+      }
+      return res.status(500).json({ message: 'Error al crear administrador' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+/* =========================
+   AUTH
+========================= */
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { nombre, email, password, rol = 'vendedor' } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
-    
-    // IPs permitidas (sin restricciones)
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
+
     const allowedIPs = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'];
-    const isAllowedIP = allowedIPs.includes(ipAddress) || ipAddress.includes('127.0.0.1') || ipAddress.includes('localhost');
-    
+    const isAllowedIP = allowedIPs.includes(ipAddress) || String(ipAddress).includes('127.0.0.1') || String(ipAddress).includes('localhost');
+
     if (!nombre || !email || !password) {
       return res.status(400).json({ message: 'Todos los campos son obligatorios' });
     }
 
-    // Verificar si el usuario ya existe
-    db.get('SELECT id FROM usuarios WHERE email = ?', [email], (err, row) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error en el servidor' });
-      }
-      
-      if (row) {
-        return res.status(400).json({ message: 'El email ya está registrado' });
+    const exists = await qFirst('SELECT id FROM usuarios WHERE email = ?', [email]);
+    if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
+
+    if (rol === 'administrador' && !isAllowedIP) {
+      await registrarAccion(null, null, 'INTENTO_CREAR_ADMIN', 'auth', JSON.stringify({ nombre, email, rol }), ipAddress);
+
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '🚨 INTENTO DE CREAR ADMINISTRADOR',
+          `Alguien intentó crear un usuario administrador: ${nombre} (${email})`,
+          'intento_admin_critico',
+          null,
+          { nombre, email, rol, ipAddress }
+        );
       }
 
-      // Si intenta crear un rol de administrador, verificar si está autorizado (permitido para IPs locales)
-      if (rol === 'administrador' && !isAllowedIP) {
-        // Registrar intento de crear admin
-        registrarAccion(null, null, 'INTENTO_CREAR_ADMIN', 'auth', { nombre, email, rol }, ipAddress);
-        
-        // Notificar al admin premium inmediatamente
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearAlertaPremium(premiumUser.id, '🚨 INTENTO DE CREAR ADMINISTRADOR', 
-              `Alguien intentó crear un usuario administrador: ${nombre} (${email})`, 
-              'intento_admin_critico', null, { nombre, email, rol, ipAddress });
-          }
-        });
-        
-        return res.status(403).json({ message: 'No autorizado para crear administradores' });
-      }
+      return res.status(403).json({ message: 'No autorizado para crear administradores' });
+    }
 
-      // Insertar nuevo usuario
-      db.run('INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)', 
-        [nombre, email, password, rol], 
-        function(err) {
-          if (err) {
-            return res.status(500).json({ message: 'Error al registrar usuario' });
-          }
-          
-          // Registrar auditoría solo si no es IP permitida
-          if (!isAllowedIP) {
-            registrarAuditoria(this.lastID, 'CREACION_USUARIO', 'usuarios', this.lastID, null, { nombre, email, rol });
-          }
-          
-          // Notificar al admin premium del nuevo registro solo si no es IP permitida
-          if (!isAllowedIP) {
-            db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-              if (!err && premiumUser) {
-                crearAlertaPremium(premiumUser.id, '👤 Nuevo Usuario Registrado', 
-                  `Se ha registrado un nuevo usuario: ${nombre} (${email}) - Rol: ${rol}`, 
-                  'nuevo_usuario', this.lastID, { nombre, email, rol });
-              }
-            });
-          }
-          
-          res.status(201).json({ 
-            message: 'Usuario registrado exitosamente',
-            user: { id: this.lastID, nombre, email, rol }
-          });
-        }
-      );
+    const result = await q(
+      'INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)',
+      [nombre, email, password, rol]
+    );
+
+    if (!isAllowedIP) {
+      await registrarAuditoria(result.insertId, 'CREACION_USUARIO', 'usuarios', result.insertId, null, { nombre, email, rol });
+    }
+
+    if (!isAllowedIP) {
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '👤 Nuevo Usuario Registrado',
+          `Se ha registrado un nuevo usuario: ${nombre} (${email}) - Rol: ${rol}`,
+          'nuevo_usuario',
+          result.insertId,
+          { nombre, email, rol }
+        );
+      }
+    }
+
+    res.status(201).json({
+      message: 'Usuario registrado exitosamente',
+      user: { id: result.insertId, nombre, email, rol }
     });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
@@ -990,89 +911,71 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password, dispositivo_info = {} } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
     const userAgent = req.get('User-Agent');
-    
-    // IPs permitidas (siempre desbloqueadas)
+
     const allowedIPs = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'];
-    const isAllowedIP = allowedIPs.includes(ipAddress) || ipAddress.includes('127.0.0.1') || ipAddress.includes('localhost');
-    
+    const isAllowedIP = allowedIPs.includes(ipAddress) || String(ipAddress).includes('127.0.0.1') || String(ipAddress).includes('localhost');
+
     if (!email || !password) {
       return res.status(400).json({ message: 'Email y password son obligatorios' });
     }
 
-    db.get('SELECT * FROM usuarios WHERE email = ?', [email], (err, row) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error en el servidor' });
-      }
-      
-      if (!row) {
-        // Registrar intento fallido solo si no es IP permitida
-        if (!isAllowedIP) {
-          registrarAccion(null, null, 'LOGIN_FALLIDO', 'auth', { email, error: 'usuario_no_encontrado' }, ipAddress);
-        }
-        return res.status(401).json({ message: 'Credenciales inválidas' });
-      }
+    const row = await qFirst('SELECT * FROM usuarios WHERE email = ?', [email]);
 
-      if (!row.habilitado) {
-        // Permitir acceso a admin premium incluso si está deshabilitado (para emergencias)
-        if (!row.es_premium && !isAllowedIP) {
-          registrarAccion(row.id, null, 'LOGIN_DESHABILITADO', 'auth', { email }, ipAddress);
-        }
-        return res.status(401).json({ message: 'Usuario deshabilitado' });
-      }
+    if (!row) {
+      if (!isAllowedIP) await registrarAccion(null, null, 'LOGIN_FALLIDO', 'auth', JSON.stringify({ email, error: 'usuario_no_encontrado' }), ipAddress);
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
 
-      if (row.password !== password) {
-        // Registrar intento fallido solo si no es IP permitida
-        if (!isAllowedIP) {
-          registrarAccion(row.id, null, 'LOGIN_FALLIDO', 'auth', { email, error: 'password_incorrecto' }, ipAddress);
-        }
-        return res.status(401).json({ message: 'Credenciales inválidas' });
-      }
+    if (!row.habilitado) {
+      if (!row.es_premium && !isAllowedIP) await registrarAccion(row.id, null, 'LOGIN_DESHABILITADO', 'auth', JSON.stringify({ email }), ipAddress);
+      return res.status(401).json({ message: 'Usuario deshabilitado' });
+    }
 
-      // Registrar dispositivo
-      if (dispositivo_info && dispositivo_info.dispositivo_id) {
-        registrarDispositivo(row.id, dispositivo_info).catch(err => {
-          console.error('Error al registrar dispositivo:', err);
-        });
-      }
+    if (row.password !== password) {
+      if (!isAllowedIP) await registrarAccion(row.id, null, 'LOGIN_FALLIDO', 'auth', JSON.stringify({ email, error: 'password_incorrecto' }), ipAddress);
+      return res.status(401).json({ message: 'Credenciales inválidas' });
+    }
 
-      // Registrar sesión exitosa
-      registrarSesion(row.id, ipAddress, userAgent, dispositivo_info).then(sesionId => {
-        // Registrar acción de login solo si no es IP permitida
-        if (!isAllowedIP) {
-          registrarAccion(row.id, sesionId, 'LOGIN_EXITOSO', 'auth', { email, dispositivo: dispositivo_info }, ipAddress);
-        }
-        
-        // Crear alerta para el admin premium si no es el usuario premium y no es IP permitida
-        if (!row.es_premium && !isAllowedIP) {
-          db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-            if (!err && premiumUser) {
-              crearAlertaPremium(premiumUser.id, '🔐 Usuario Conectado', 
-                `El usuario ${row.nombre} (${row.email}) acaba de iniciar sesión`, 
-                'login_usuario', row.id, { email, ipAddress, userAgent, dispositivo: dispositivo_info });
-            }
-          });
-        }
-        
-        res.json({
-          message: 'Login exitoso',
-          user: {
-            id: row.id,
-            nombre: row.nombre,
-            email: row.email,
-            rol: row.rol,
-            es_premium: row.es_premium,
-            es_admin: row.rol === 'administrador' && !row.es_premium, // Administrador limitado
-            habilitado: row.habilitado,
-            sesion_id: sesionId
-          }
-        });
-      }).catch(err => {
-        console.error('Error al registrar sesión:', err);
-        res.status(500).json({ message: 'Error en el servidor' });
-      });
+    if (dispositivo_info && dispositivo_info.dispositivo_id) {
+      registrarDispositivo(row.id, dispositivo_info).catch(err => console.error('Error al registrar dispositivo:', err));
+    }
+
+    const sesionId = await registrarSesion(row.id, ipAddress, userAgent, dispositivo_info);
+
+    if (!isAllowedIP) {
+      await registrarAccion(row.id, sesionId, 'LOGIN_EXITOSO', 'auth', JSON.stringify({ email, dispositivo: dispositivo_info }), ipAddress);
+    }
+
+    if (!row.es_premium && !isAllowedIP) {
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '🔐 Usuario Conectado',
+          `El usuario ${row.nombre} (${row.email}) acaba de iniciar sesión`,
+          'login_usuario',
+          row.id,
+          { email, ipAddress, userAgent, dispositivo: dispositivo_info }
+        );
+      }
+    }
+
+    res.json({
+      message: 'Login exitoso',
+      user: {
+        id: row.id,
+        nombre: row.nombre,
+        email: row.email,
+        rol: row.rol,
+        es_premium: !!row.es_premium,
+        es_admin: row.rol === 'administrador' && !row.es_premium,
+        habilitado: !!row.habilitado,
+        sesion_id: sesionId
+      }
     });
+
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
@@ -1082,45 +985,48 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/logout', async (req, res) => {
   try {
     const { usuario_id, sesion_id } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
-    
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
+
     if (usuario_id && sesion_id) {
-      // Cerrar sesión
       await cerrarSesion(sesion_id);
-      
-      // Registrar logout
-      registrarAccion(usuario_id, sesion_id, 'LOGOUT', 'auth', {}, ipAddress);
-      
-      // Crear alerta para el admin premium
-      db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuario_id], (err, row) => {
-        if (!err && row && !row.es_premium) {
-          db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-            if (!err && premiumUser) {
-              crearAlertaPremium(premiumUser.id, '🔓 Usuario Desconectado', 
-                `El usuario ${usuario_id} cerró sesión`, 
-                'logout_usuario', usuario_id, { ipAddress });
-            }
-          });
+
+      await registrarAccion(usuario_id, sesion_id, 'LOGOUT', 'auth', JSON.stringify({}), ipAddress);
+
+      const row = await qFirst('SELECT es_premium FROM usuarios WHERE id = ?', [usuario_id]);
+      if (row && !row.es_premium) {
+        const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+        if (premiumUser) {
+          await crearAlertaPremium(
+            premiumUser.id,
+            '🔓 Usuario Desconectado',
+            `El usuario ${usuario_id} cerró sesión`,
+            'logout_usuario',
+            usuario_id,
+            { ipAddress }
+          );
         }
-      });
+      }
     }
-    
+
     res.json({ message: 'Logout exitoso' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
-// Rutas de tracking
+/* =========================
+   TRACKING ROUTES
+========================= */
+
 app.post('/api/tracking/navegacion', async (req, res) => {
   try {
     const { usuario_id, sesion_id, seccion, accion, detalles } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
-    
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
+
     if (usuario_id && sesion_id) {
-      registrarNavegacion(sesion_id, usuario_id, seccion, accion, detalles, ipAddress);
+      await registrarNavegacion(sesion_id, usuario_id, seccion, accion, detalles, ipAddress);
     }
-    
+
     res.json({ message: 'Navegación registrada' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
@@ -1130,34 +1036,32 @@ app.post('/api/tracking/navegacion', async (req, res) => {
 app.post('/api/tracking/accion', async (req, res) => {
   try {
     const { usuario_id, sesion_id, tipo_accion, modulo, datos_accion } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
-    
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
+
     if (usuario_id) {
-      registrarAccion(usuario_id, sesion_id, tipo_accion, modulo, datos_accion, ipAddress);
+      await registrarAccion(usuario_id, sesion_id, tipo_accion, modulo, datos_accion, ipAddress);
     }
-    
+
     res.json({ message: 'Acción registrada' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
+/* =========================
+   ALERTAS / AUDITORÍA / NOTIFS
+========================= */
+
 app.get('/api/alertas-premium', async (req, res) => {
   try {
-    const alertas = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT a.*, u.nombre as usuario_afectado_nombre, u.email as usuario_afectado_email
-        FROM alertas_premium a
-        LEFT JOIN usuarios u ON a.usuario_afectado_id = u.id
-        ORDER BY a.fecha_alerta DESC
-        LIMIT 100
-      `;
-      db.all(query, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(alertas);
+    const rows = await q(
+      `SELECT a.*, u.nombre as usuario_afectado_nombre, u.email as usuario_afectado_email
+       FROM alertas_premium a
+       LEFT JOIN usuarios u ON a.usuario_afectado_id = u.id
+       ORDER BY a.fecha_alerta DESC
+       LIMIT 100`
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener alertas' });
   }
@@ -1166,33 +1070,24 @@ app.get('/api/alertas-premium', async (req, res) => {
 app.post('/api/alertas-premium/:id/leida', async (req, res) => {
   try {
     const { id } = req.params;
-    db.run('UPDATE alertas_premium SET leida = 1 WHERE id = ?', [id], (err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al marcar alerta como leída' });
-      }
-      res.json({ message: 'Alerta marcada como leída' });
-    });
+    await q('UPDATE alertas_premium SET leida = 1 WHERE id = ?', [id]);
+    res.json({ message: 'Alerta marcada como leída' });
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ message: 'Error al marcar alerta como leída' });
   }
 });
 
 app.get('/api/tracking/sesiones/:usuario_id', async (req, res) => {
   try {
     const { usuario_id } = req.params;
-    const sesiones = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT * FROM tracking_sesiones 
-        WHERE usuario_id = ? 
-        ORDER BY fecha_login DESC 
-        LIMIT 50
-      `;
-      db.all(query, [usuario_id], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(sesiones);
+    const rows = await q(
+      `SELECT * FROM tracking_sesiones
+       WHERE usuario_id = ?
+       ORDER BY fecha_login DESC
+       LIMIT 50`,
+      [usuario_id]
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener sesiones' });
   }
@@ -1201,34 +1096,23 @@ app.get('/api/tracking/sesiones/:usuario_id', async (req, res) => {
 app.get('/api/tracking/navegacion/:usuario_id', async (req, res) => {
   try {
     const { usuario_id } = req.params;
-    const navegacion = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT * FROM tracking_navegacion 
-        WHERE usuario_id = ? 
-        ORDER BY fecha_visita DESC 
-        LIMIT 100
-      `;
-      db.all(query, [usuario_id], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(navegacion);
+    const rows = await q(
+      `SELECT * FROM tracking_navegacion
+       WHERE usuario_id = ?
+       ORDER BY fecha_visita DESC
+       LIMIT 100`,
+      [usuario_id]
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener navegación' });
   }
 });
 
-// Rutas de auditoría y notificaciones
 app.get('/api/notificaciones', async (req, res) => {
   try {
-    const notificaciones = await new Promise((resolve, reject) => {
-      db.all('SELECT * FROM notificaciones ORDER BY created_at DESC LIMIT 50', (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(notificaciones);
+    const rows = await q('SELECT * FROM notificaciones ORDER BY created_at DESC LIMIT 50');
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener notificaciones' });
   }
@@ -1237,33 +1121,23 @@ app.get('/api/notificaciones', async (req, res) => {
 app.post('/api/notificaciones/:id/leida', async (req, res) => {
   try {
     const { id } = req.params;
-    db.run('UPDATE notificaciones SET leida = 1 WHERE id = ?', [id], (err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al marcar notificación como leída' });
-      }
-      res.json({ message: 'Notificación marcada como leída' });
-    });
+    await q('UPDATE notificaciones SET leida = 1 WHERE id = ?', [id]);
+    res.json({ message: 'Notificación marcada como leída' });
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ message: 'Error al marcar notificación como leída' });
   }
 });
 
 app.get('/api/auditoria', async (req, res) => {
   try {
-    const auditoria = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT a.*, u.nombre as usuario_nombre, u.email as usuario_email
-        FROM auditoria a
-        JOIN usuarios u ON a.usuario_id = u.id
-        ORDER BY a.fecha_accion DESC
-        LIMIT 100
-      `;
-      db.all(query, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(auditoria);
+    const rows = await q(
+      `SELECT a.*, u.nombre as usuario_nombre, u.email as usuario_email
+       FROM auditoria a
+       JOIN usuarios u ON a.usuario_id = u.id
+       ORDER BY a.fecha_accion DESC
+       LIMIT 100`
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener auditoría' });
   }
@@ -1272,39 +1146,37 @@ app.get('/api/auditoria', async (req, res) => {
 app.get('/api/historial/:tabla/:registroId', async (req, res) => {
   try {
     const { tabla, registroId } = req.params;
-    const historial = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT h.*, u.nombre as modificado_por_nombre
-        FROM historial_datos h
-        JOIN usuarios u ON h.modificado_por = u.id
-        WHERE h.tabla_afectada = ? AND h.registro_id = ?
-        ORDER BY h.fecha_modificacion DESC
-      `;
-      db.all(query, [tabla, registroId], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(historial);
+    const rows = await q(
+      `SELECT h.*, u.nombre as modificado_por_nombre
+       FROM historial_datos h
+       JOIN usuarios u ON h.modificado_por = u.id
+       WHERE h.tabla_afectada = ? AND h.registro_id = ?
+       ORDER BY h.fecha_modificacion DESC`,
+      [tabla, registroId]
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener historial' });
   }
 });
 
-// Rutas de vehículos
-app.get('/api/vehiculos', (req, res) => {
-  db.all('SELECT * FROM vehiculos WHERE eliminado = 0 ORDER BY created_at DESC', (err, rows) => {
-    if (err) {
-      return res.status(500).json({ message: 'Error al obtener vehículos' });
-    }
+/* =========================
+   VEHÍCULOS
+========================= */
+
+app.get('/api/vehiculos', async (req, res) => {
+  try {
+    const rows = await q('SELECT * FROM vehiculos WHERE eliminado = 0 ORDER BY created_at DESC');
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener vehículos' });
+  }
 });
 
-app.post('/api/vehiculos', (req, res) => {
+app.post('/api/vehiculos', async (req, res) => {
   try {
     const { tipo, marca, modelo, version, anio, condicion, precio, dominio } = req.body;
-    
+
     if (!tipo || !marca || !modelo || !anio || !condicion || !precio) {
       return res.status(400).json({ message: 'Todos los campos obligatorios deben ser completados' });
     }
@@ -1313,290 +1185,315 @@ app.post('/api/vehiculos', (req, res) => {
       return res.status(400).json({ message: 'El dominio es obligatorio para vehículos usados' });
     }
 
-    db.run('INSERT INTO vehiculos (tipo, marca, modelo, version, anio, condicion, precio, dominio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [tipo, marca, modelo, version, anio, condicion, precio, dominio],
-      function(err) {
-        if (err) {
-          return res.status(500).json({ message: 'Error al guardar vehículo' });
-        }
-        
-        const vehiculoId = this.lastID;
-        const vehiculoData = { tipo, marca, modelo, version, anio, condicion, precio, dominio };
-        
-        // Registrar auditoría (asumimos que viene del usuario logueado)
-        registrarAuditoria(1, 'CREACION_VEHICULO', 'vehiculos', vehiculoId, null, vehiculoData);
-        
-        res.status(201).json({ 
-          message: 'Vehículo agregado correctamente',
-          vehiculo: { id: vehiculoId, ...vehiculoData }
-        });
-      }
+    const result = await q(
+      'INSERT INTO vehiculos (tipo, marca, modelo, version, anio, condicion, precio, dominio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [tipo, marca, modelo, version, anio, condicion, precio, dominio]
     );
+
+    const vehiculoId = result.insertId;
+    const vehiculoData = { tipo, marca, modelo, version, anio, condicion, precio, dominio };
+
+    await registrarAuditoria(1, 'CREACION_VEHICULO', 'vehiculos', vehiculoId, null, vehiculoData);
+
+    res.status(201).json({
+      message: 'Vehículo agregado correctamente',
+      vehiculo: { id: vehiculoId, ...vehiculoData }
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ message: 'Error al guardar vehículo' });
   }
 });
 
 // Soft delete de vehículos
-app.delete('/api/vehiculos/:id', (req, res) => {
+app.delete('/api/vehiculos/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Obtener datos antes de eliminar
-    db.get('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id], (err, vehiculo) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al obtener vehículo' });
-      }
-      
-      if (!vehiculo) {
-        return res.status(404).json({ message: 'Vehículo no encontrado' });
-      }
-      
-      // Soft delete
-      db.run('UPDATE vehiculos SET eliminado = 1, eliminado_por = ?, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', 
-        [1, id], (err) => {
-          if (err) {
-            return res.status(500).json({ message: 'Error al eliminar vehículo' });
-          }
-          
-          // Registrar auditoría
-          registrarAuditoria(1, 'ELIMINACION_VEHICULO', 'vehiculos', parseInt(id), vehiculo, { eliminado: true });
-          
-          res.json({ message: 'Vehículo eliminado correctamente' });
-        }
-      );
-    });
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    await q(
+      'UPDATE vehiculos SET eliminado = 1, eliminado_por = ?, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?',
+      [1, id]
+    );
+
+    await registrarAuditoria(1, 'ELIMINACION_VEHICULO', 'vehiculos', parseInt(id, 10), vehiculo, { eliminado: true });
+
+    res.json({ message: 'Vehículo eliminado correctamente' });
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ message: 'Error al eliminar vehículo' });
   }
 });
 
-// Rutas de clientes
-app.get('/api/clientes', (req, res) => {
-  db.all('SELECT * FROM clientes ORDER BY created_at DESC', (err, rows) => {
-    if (err) {
-      return res.status(500).json({ message: 'Error al obtener clientes' });
-    }
+/* =========================
+   CLIENTES
+========================= */
+
+app.get('/api/clientes', async (req, res) => {
+  try {
+    const rows = await q('SELECT * FROM clientes ORDER BY created_at DESC');
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener clientes' });
+  }
 });
 
-app.post('/api/clientes', (req, res) => {
+app.post('/api/clientes', async (req, res) => {
   try {
     const { nombre, apellido, dni, telefono, email, direccion, observaciones } = req.body;
-    
+
     if (!nombre || !apellido || !dni) {
       return res.status(400).json({ message: 'Nombre, apellido y DNI son obligatorios' });
     }
 
-    db.run('INSERT INTO clientes (nombre, apellido, dni, telefono, email, direccion, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [nombre, apellido, dni, telefono, email, direccion, observaciones],
-      function(err) {
-        if (err) {
-          if (err.message.includes('UNIQUE constraint failed')) {
-            return res.status(400).json({ message: 'El DNI ya está registrado' });
-          }
-          return res.status(500).json({ message: 'Error al guardar cliente' });
-        }
-        res.status(201).json({ 
-          message: 'Cliente agregado correctamente',
-          cliente: { id: this.lastID, ...req.body }
-        });
+    try {
+      const result = await q(
+        'INSERT INTO clientes (nombre, apellido, dni, telefono, email, direccion, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [nombre, apellido, dni, telefono, email, direccion, observaciones]
+      );
+
+      res.status(201).json({
+        message: 'Cliente agregado correctamente',
+        cliente: { id: result.insertId, ...req.body }
+      });
+    } catch (err) {
+      if (String(err.message || '').toUpperCase().includes('DUPLICATE')) {
+        return res.status(400).json({ message: 'El DNI ya está registrado' });
       }
-    );
+      return res.status(500).json({ message: 'Error al guardar cliente' });
+    }
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
-// Rutas de minutas
-app.get('/api/minutas', (req, res) => {
-  db.all(`
-    SELECT m.*, v.marca, v.modelo, v.anio, c.nombre as cliente_nombre, c.apellido as cliente_apellido, u.nombre as vendedor_nombre
-    FROM minutas m
-    JOIN vehiculos v ON m.vehiculo_id = v.id
-    JOIN clientes c ON m.cliente_id = c.id
-    JOIN usuarios u ON m.vendedor_id = u.id
-    WHERE m.eliminado = 0
-    ORDER BY m.created_at DESC
-  `, (err, rows) => {
-    if (err) {
-      return res.status(500).json({ message: 'Error al obtener minutas' });
-    }
+/* =========================
+   MINUTAS
+========================= */
+
+app.get('/api/minutas', async (req, res) => {
+  try {
+    const rows = await q(
+      `SELECT m.*, v.marca, v.modelo, v.anio,
+              c.nombre as cliente_nombre, c.apellido as cliente_apellido,
+              u.nombre as vendedor_nombre
+       FROM minutas m
+       JOIN vehiculos v ON m.vehiculo_id = v.id
+       JOIN clientes c ON m.cliente_id = c.id
+       JOIN usuarios u ON m.vendedor_id = u.id
+       WHERE m.eliminado = 0
+       ORDER BY m.created_at DESC`
+    );
     res.json(rows);
-  });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener minutas' });
+  }
 });
 
-app.post('/api/minutas', (req, res) => {
+app.post('/api/minutas', async (req, res) => {
   try {
     const { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress;
-    
+    const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
+
     if (!vehiculo_id || !cliente_id || !vendedor_id || !precio_original || !precio_final) {
       return res.status(400).json({ message: 'Todos los campos obligatorios deben ser completados' });
     }
 
-    // Verificar si el vehículo está disponible
-    db.get('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [vehiculo_id], (err, vehiculo) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al verificar vehículo' });
-      }
-      
-      if (!vehiculo) {
-        return res.status(404).json({ message: 'Vehículo no encontrado' });
-      }
-      
-      if (vehiculo.estado !== 'disponible') {
-        // Registrar intento de vender vehículo no disponible
-        registrarAccion(vendedor_id, null, 'INTENTO_VENDER_NO_DISPONIBLE', 'minutas', 
-          { vehiculo_id, estado_actual: vehiculo.estado }, ipAddress);
-        
-        // Notificar al admin premium
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearAlertaPremium(premiumUser.id, '🚫 Intento de Venta Duplicada', 
-              `El vendedor ${vendedor_id} intentó vender un vehículo no disponible (ID: ${vehiculo_id})`, 
-              'venta_duplicada', vendedor_id, { vehiculo_id, estado_actual: vehiculo.estado });
-          }
-        });
-        
-        return res.status(400).json({ message: 'Este vehículo no está disponible para venta. Estado actual: ' + vehiculo.estado });
-      }
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [vehiculo_id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
 
-      // Verificar si ya existe una minuta activa para este vehículo
-      db.get('SELECT * FROM minutas WHERE vehiculo_id = ? AND estado NOT IN ("cerrada", "cancelada") AND eliminado = 0', 
-        [vehiculo_id], (err, minutaExistente) => {
-          if (err) {
-            return res.status(500).json({ message: 'Error al verificar minutas existentes' });
-          }
-          
-          if (minutaExistente) {
-            // Registrar intento de duplicar minuta
-            registrarAccion(vendedor_id, null, 'INTENTO_MINUTA_DUPLICADA', 'minutas', 
-              { vehiculo_id, minuta_existente_id: minutaExistente.id }, ipAddress);
-            
-            // Notificar al admin premium
-            db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-              if (!err && premiumUser) {
-                crearAlertaPremium(premiumUser.id, '🚫 Intento de Minuta Duplicada', 
-                  `El vendedor ${vendedor_id} intentó crear otra minuta para el mismo vehículo (ID: ${vehiculo_id})`, 
-                  'minuta_duplicada', vendedor_id, { vehiculo_id, minuta_existente_id: minutaExistente.id });
-              }
-            });
-            
-            return res.status(400).json({ message: 'Ya existe una minuta activa para este vehículo. Minuta ID: ' + minutaExistente.id });
-          }
-
-          // Crear la minuta y actualizar el estado del vehículo
-          db.run('INSERT INTO minutas (vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones, estado) VALUES (?, ?, ?, ?, ?, ?, "reservada")',
-            [vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones],
-            function(err) {
-              if (err) {
-                return res.status(500).json({ message: 'Error al crear minuta' });
-              }
-              
-              const minutaId = this.lastID;
-              
-              // Actualizar el estado del vehículo a reservado
-              db.run('UPDATE vehiculos SET estado = "reservado", updated_at = CURRENT_TIMESTAMP WHERE id = ?', [vehiculo_id], (err) => {
-                if (err) {
-                  console.error('Error al actualizar estado del vehículo:', err);
-                }
-              });
-              
-              // Registrar auditoría
-              registrarAuditoria(vendedor_id, 'CREACION_MINUTA', 'minutas', minutaId, 
-                null, { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final });
-              
-              // Notificar al admin premium
-              db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-                if (!err && premiumUser) {
-                  crearAlertaPremium(premiumUser.id, '📋 Nueva Minuta Creada', 
-                    `Se ha creado una nueva minuta para el vehículo ${vehiculo_id} - Vendedor: ${vendedor_id}`, 
-                    'nueva_minuta', vendedor_id, { minuta_id: minutaId, vehiculo_id, cliente_id });
-                }
-              });
-              
-              res.status(201).json({ 
-                message: 'Minuta creada correctamente y vehículo reservado',
-                minuta: { id: minutaId, vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, estado: 'reservada' }
-              });
-            }
-          );
-        }
+    if (vehiculo.estado !== 'disponible') {
+      await registrarAccion(
+        vendedor_id,
+        null,
+        'INTENTO_VENDER_NO_DISPONIBLE',
+        'minutas',
+        JSON.stringify({ vehiculo_id, estado_actual: vehiculo.estado }),
+        ipAddress
       );
-    });
+
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '🚫 Intento de Venta Duplicada',
+          `El vendedor ${vendedor_id} intentó vender un vehículo no disponible (ID: ${vehiculo_id})`,
+          'venta_duplicada',
+          vendedor_id,
+          { vehiculo_id, estado_actual: vehiculo.estado }
+        );
+      }
+
+      return res.status(400).json({ message: 'Este vehículo no está disponible para venta. Estado actual: ' + vehiculo.estado });
+    }
+
+    const minutaExistente = await qFirst(
+      `SELECT * FROM minutas
+       WHERE vehiculo_id = ?
+         AND estado NOT IN ('cerrada','cancelada')
+         AND eliminado = 0
+       LIMIT 1`,
+      [vehiculo_id]
+    );
+
+    if (minutaExistente) {
+      await registrarAccion(
+        vendedor_id,
+        null,
+        'INTENTO_MINUTA_DUPLICADA',
+        'minutas',
+        JSON.stringify({ vehiculo_id, minuta_existente_id: minutaExistente.id }),
+        ipAddress
+      );
+
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '🚫 Intento de Minuta Duplicada',
+          `El vendedor ${vendedor_id} intentó crear otra minuta para el mismo vehículo (ID: ${vehiculo_id})`,
+          'minuta_duplicada',
+          vendedor_id,
+          { vehiculo_id, minuta_existente_id: minutaExistente.id }
+        );
+      }
+
+      return res.status(400).json({ message: 'Ya existe una minuta activa para este vehículo. Minuta ID: ' + minutaExistente.id });
+    }
+
+    // Transacción: crear minuta + actualizar vehículo
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [result] = await conn.execute(
+        `INSERT INTO minutas (vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones, estado)
+         VALUES (?, ?, ?, ?, ?, ?, 'reservada')`,
+        [vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones]
+      );
+      const minutaId = result.insertId;
+
+      await conn.execute(
+        `UPDATE vehiculos SET estado = 'reservado', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [vehiculo_id]
+      );
+
+      await conn.commit();
+
+      await registrarAuditoria(
+        vendedor_id,
+        'CREACION_MINUTA',
+        'minutas',
+        minutaId,
+        null,
+        { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final }
+      );
+
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '📋 Nueva Minuta Creada',
+          `Se ha creado una nueva minuta para el vehículo ${vehiculo_id} - Vendedor: ${vendedor_id}`,
+          'nueva_minuta',
+          vendedor_id,
+          { minuta_id: minutaId, vehiculo_id, cliente_id }
+        );
+      }
+
+      res.status(201).json({
+        message: 'Minuta creada correctamente y vehículo reservado',
+        minuta: { id: minutaId, vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, estado: 'reservada' }
+      });
+
+    } catch (e) {
+      try { await conn.rollback(); } catch {}
+      console.error('Error al crear minuta:', e);
+      return res.status(500).json({ message: 'Error al crear minuta' });
+    } finally {
+      conn.release();
+    }
+
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
 // Ruta para liberar vehículo (solo administradores)
-app.post('/api/minutas/:id/liberar-vehiculo', (req, res) => {
+app.post('/api/minutas/:id/liberar-vehiculo', async (req, res) => {
   const { id } = req.params;
   const { usuario_id, rol } = req.body;
-  
-  // Verificar que sea administrador
+
   if (rol !== 'administrador') {
     return res.status(403).json({ message: 'Solo los administradores pueden liberar vehículos' });
   }
-  
-  // Obtener la minuta
-  db.get('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id], (err, minuta) => {
-    if (err) {
-      return res.status(500).json({ message: 'Error al obtener minuta' });
-    }
-    
-    if (!minuta) {
-      return res.status(404).json({ message: 'Minuta no encontrada' });
-    }
-    
-    // Actualizar estado del vehículo a disponible
-    db.run('UPDATE vehiculos SET estado = "disponible", updated_at = CURRENT_TIMESTAMP WHERE id = ?', [minuta.vehiculo_id], (err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al liberar vehículo' });
+
+  try {
+    const minuta = await qFirst('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id]);
+    if (!minuta) return res.status(404).json({ message: 'Minuta no encontrada' });
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      await conn.execute(
+        `UPDATE vehiculos SET estado = 'disponible', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [minuta.vehiculo_id]
+      );
+
+      await conn.execute(
+        `UPDATE minutas SET estado = 'cancelada', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [id]
+      );
+
+      await conn.commit();
+
+      await registrarAuditoria(
+        usuario_id,
+        'LIBERACION_VEHICULO',
+        'minutas',
+        id,
+        { estado_anterior: minuta.estado },
+        { estado_nuevo: 'cancelada' }
+      );
+
+      const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
+      if (premiumUser) {
+        await crearAlertaPremium(
+          premiumUser.id,
+          '🚗 Vehículo Liberado',
+          `El administrador ${usuario_id} liberó el vehículo ${minuta.vehiculo_id}`,
+          'vehiculo_liberado',
+          usuario_id,
+          { minuta_id: id, vehiculo_id: minuta.vehiculo_id }
+        );
       }
-      
-      // Actualizar estado de la minuta
-      db.run('UPDATE minutas SET estado = "cancelada", updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id], (err) => {
-        if (err) {
-          return res.status(500).json({ message: 'Error al actualizar minuta' });
-        }
-        
-        // Registrar auditoría
-        registrarAuditoria(usuario_id, 'LIBERACION_VEHICULO', 'minutas', id, 
-          { estado_anterior: minuta.estado }, { estado_nuevo: 'cancelada' });
-        
-        // Notificar al admin premium
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearAlertaPremium(premiumUser.id, '🚗 Vehículo Liberado', 
-              `El administrador ${usuario_id} liberó el vehículo ${minuta.vehiculo_id}`, 
-              'vehiculo_liberado', usuario_id, { minuta_id: id, vehiculo_id: minuta.vehiculo_id });
-          }
-        });
-        
-        res.json({ message: 'Vehículo liberado correctamente y disponible para venta' });
-      });
-    });
-  });
+
+      res.json({ message: 'Vehículo liberado correctamente y disponible para venta' });
+    } catch (e) {
+      try { await conn.rollback(); } catch {}
+      return res.status(500).json({ message: 'Error al liberar vehículo' });
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
 });
 
-// Rutas de gestión de usuarios (solo admin premium)
+/* =========================
+   USUARIOS (ADMIN PREMIUM)
+========================= */
+
 app.get('/api/usuarios/todos', async (req, res) => {
   try {
-    const usuarios = await new Promise((resolve, reject) => {
-      const query = `
-        SELECT id, nombre, email, rol, habilitado, es_premium, created_at, updated_at
-        FROM usuarios 
-        ORDER BY created_at DESC
-      `;
-      db.all(query, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
-    res.json(usuarios);
+    const rows = await q(
+      `SELECT id, nombre, email, rol, habilitado, es_premium, created_at, updated_at
+       FROM usuarios
+       ORDER BY created_at DESC`
+    );
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener usuarios' });
   }
@@ -1606,47 +1503,42 @@ app.post('/api/usuarios/:id/suspender', async (req, res) => {
   try {
     const { id } = req.params;
     const { motivo, mensaje, duracion, usuario_premium_id } = req.body;
-    
-    // Obtener datos del usuario a suspender
-    db.get('SELECT * FROM usuarios WHERE id = ?', [id], (err, usuario) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al obtener usuario' });
-      }
-      
-      if (!usuario) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-      }
-      
-      if (usuario.es_premium) {
-        return res.status(403).json({ message: 'No se puede suspender al usuario premium' });
-      }
-      
-      // Actualizar estado del usuario
-      db.run('UPDATE usuarios SET habilitado = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id], (err) => {
-        if (err) {
-          return res.status(500).json({ message: 'Error al suspender usuario' });
-        }
-        
-        // Registrar en tabla de suspensiones
-        db.run('INSERT INTO suspensiones (usuario_id, motivo, mensaje, duracion, suspendido_por) VALUES (?, ?, ?, ?, ?)',
-          [id, motivo, mensaje, duracion, usuario_premium_id], (err) => {
-            if (err) {
-              console.error('Error al registrar suspensión:', err);
-            }
-          });
-        
-        // Registrar auditoría
-        registrarAuditoria(usuario_premium_id, 'SUSPENSION_USUARIO', 'usuarios', id, 
-          { estado_anterior: usuario.habilitado }, { estado_nuevo: false, motivo });
-        
-        // Notificar al admin premium
-        crearAlertaPremium(usuario_premium_id, '🚫 Usuario Suspendido', 
-          `El usuario ${usuario.nombre} (${usuario.email}) ha sido suspendido por: ${motivo}`, 
-          'usuario_suspendido', id, { motivo, mensaje, duracion });
-        
-        res.json({ message: 'Usuario suspendido correctamente' });
-      });
-    });
+
+    const usuario = await qFirst('SELECT * FROM usuarios WHERE id = ?', [id]);
+    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+    if (usuario.es_premium) return res.status(403).json({ message: 'No se puede suspender al usuario premium' });
+
+    await q('UPDATE usuarios SET habilitado = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+
+    // Registrar en suspensiones
+    try {
+      await q(
+        'INSERT INTO suspensiones (usuario_id, motivo, mensaje, duracion, suspendido_por) VALUES (?, ?, ?, ?, ?)',
+        [id, motivo, mensaje, duracion, usuario_premium_id]
+      );
+    } catch (e) {
+      console.error('Error al registrar suspensión:', e);
+    }
+
+    await registrarAuditoria(
+      usuario_premium_id,
+      'SUSPENSION_USUARIO',
+      'usuarios',
+      id,
+      { estado_anterior: usuario.habilitado },
+      { estado_nuevo: false, motivo }
+    );
+
+    await crearAlertaPremium(
+      usuario_premium_id,
+      '🚫 Usuario Suspendido',
+      `El usuario ${usuario.nombre} (${usuario.email}) ha sido suspendido por: ${motivo}`,
+      'usuario_suspendido',
+      id,
+      { motivo, mensaje, duracion }
+    );
+
+    res.json({ message: 'Usuario suspendido correctamente' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
@@ -1656,35 +1548,31 @@ app.post('/api/usuarios/:id/reactivar', async (req, res) => {
   try {
     const { id } = req.params;
     const { usuario_premium_id } = req.body;
-    
-    // Obtener datos del usuario a reactivar
-    db.get('SELECT * FROM usuarios WHERE id = ?', [id], (err, usuario) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al obtener usuario' });
-      }
-      
-      if (!usuario) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-      }
-      
-      // Reactivar usuario
-      db.run('UPDATE usuarios SET habilitado = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id], (err) => {
-        if (err) {
-          return res.status(500).json({ message: 'Error al reactivar usuario' });
-        }
-        
-        // Registrar auditoría
-        registrarAuditoria(usuario_premium_id, 'REACTIVACION_USUARIO', 'usuarios', id, 
-          { estado_anterior: usuario.habilitado }, { estado_nuevo: true });
-        
-        // Notificar al admin premium
-        crearAlertaPremium(usuario_premium_id, '✅ Usuario Reactivado', 
-          `El usuario ${usuario.nombre} (${usuario.email}) ha sido reactivado`, 
-          'usuario_reactivado', id, {});
-        
-        res.json({ message: 'Usuario reactivado correctamente' });
-      });
-    });
+
+    const usuario = await qFirst('SELECT * FROM usuarios WHERE id = ?', [id]);
+    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    await q('UPDATE usuarios SET habilitado = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+
+    await registrarAuditoria(
+      usuario_premium_id,
+      'REACTIVACION_USUARIO',
+      'usuarios',
+      id,
+      { estado_anterior: usuario.habilitado },
+      { estado_nuevo: true }
+    );
+
+    await crearAlertaPremium(
+      usuario_premium_id,
+      '✅ Usuario Reactivado',
+      `El usuario ${usuario.nombre} (${usuario.email}) ha sido reactivado`,
+      'usuario_reactivado',
+      id,
+      {}
+    );
+
+    res.json({ message: 'Usuario reactivado correctamente' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
@@ -1694,45 +1582,41 @@ app.delete('/api/usuarios/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { usuario_premium_id } = req.body;
-    
-    // Obtener datos del usuario a eliminar
-    db.get('SELECT * FROM usuarios WHERE id = ?', [id], (err, usuario) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error al obtener usuario' });
-      }
-      
-      if (!usuario) {
-        return res.status(404).json({ message: 'Usuario no encontrado' });
-      }
-      
-      if (usuario.es_premium) {
-        return res.status(403).json({ message: 'No se puede eliminar al usuario premium' });
-      }
-      
-      // Soft delete del usuario
-      db.run('UPDATE usuarios SET habilitado = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id], (err) => {
-        if (err) {
-          return res.status(500).json({ message: 'Error al eliminar usuario' });
-        }
-        
-        // Registrar auditoría
-        registrarAuditoria(usuario_premium_id, 'ELIMINACION_USUARIO', 'usuarios', id, 
-          { datos_anteriores: usuario }, { eliminado: true });
-        
-        // Notificar al admin premium
-        crearAlertaPremium(usuario_premium_id, '🗑️ Usuario Eliminado', 
-          `El usuario ${usuario.nombre} (${usuario.email}) ha sido eliminado del sistema`, 
-          'usuario_eliminado', id, { datos_anteriores: usuario });
-        
-        res.json({ message: 'Usuario eliminado correctamente' });
-      });
-    });
+
+    const usuario = await qFirst('SELECT * FROM usuarios WHERE id = ?', [id]);
+    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+    if (usuario.es_premium) return res.status(403).json({ message: 'No se puede eliminar al usuario premium' });
+
+    await q('UPDATE usuarios SET habilitado = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+
+    await registrarAuditoria(
+      usuario_premium_id,
+      'ELIMINACION_USUARIO',
+      'usuarios',
+      id,
+      { datos_anteriores: usuario },
+      { eliminado: true }
+    );
+
+    await crearAlertaPremium(
+      usuario_premium_id,
+      '🗑️ Usuario Eliminado',
+      `El usuario ${usuario.nombre} (${usuario.email}) ha sido eliminado del sistema`,
+      'usuario_eliminado',
+      id,
+      { datos_anteriores: usuario }
+    );
+
+    res.json({ message: 'Usuario eliminado correctamente' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
-// Iniciar servidor (accesible desde cualquier dispositivo en la red)
+/* =========================
+   START SERVER
+========================= */
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`📱 Acceso móvil: http://192.168.0.42:${PORT}/mobile.html`);

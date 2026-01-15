@@ -260,10 +260,10 @@
         <section id="login" class="section active">
             <h2>🔐 Iniciar Sesión</h2>
             
-            <div class="config-box">
+            <div class="config-box" style="display: none;">
                 <h4>⚙️ Configuración del Servidor</h4>
-                <input type="text" id="serverIP" placeholder="IP del servidor" value="concesionaria-app-production.up.railway.app">
-                <small style="color: #856404;">Servidor en la nube configurado automáticamente</small>
+                <input type="text" id="serverIP" placeholder="IP del servidor" value="concesionaria-app-production.up.railway.app" readonly>
+                <small style="color: #856404;">Servidor configurado automáticamente</small>
             </div>
 
             <div class="form-group">
@@ -465,23 +465,8 @@
         let currentSessionId = null;
 
         function getServerURL() {
-            // Detectar automáticamente si estamos en producción o local
-            const currentHost = window.location.hostname;
-            const currentProtocol = window.location.protocol;
-            
-            // Si estamos en el mismo servidor (producción), usar la misma URL
-            if (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && !currentHost.startsWith('192.168')) {
-                return `${currentProtocol}//${currentHost}`;
-            }
-            
-            // Si hay IP configurada manualmente
-            const serverIP = document.getElementById('serverIP').value || localStorage.getItem('serverIP') || 'localhost';
-            localStorage.setItem('serverIP', serverIP);
-            
-            if (serverIP.includes('ngrok') || serverIP.includes('railway') || serverIP.includes('render')) {
-                return `https://${serverIP}`;
-            }
-            return `http://${serverIP}:4000`;
+            // En el APK, siempre usar Railway (no configurable)
+            return 'https://concesionaria-app-production.up.railway.app';
         }
 
         // Funciones de navegación
