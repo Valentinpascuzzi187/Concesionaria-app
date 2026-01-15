@@ -243,8 +243,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚗 Concesionaria Pro</h1>
-            <div class="user-info" id="userInfo">No conectado</div>
+            <div style="display:flex; align-items:center; gap:12px; justify-content:center;">
+                <img id="brandLogo" src="/assets/logo.png" alt="Logo" style="width:72px; height:72px; border-radius:50%; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                <div>
+                    <h1 style="margin:0; font-size:1.2em">De Gracia - Automotores</h1>
+                    <div class="user-info" id="userInfo">No conectado</div>
+                </div>
+            </div>
         </div>
 
         <nav class="nav-mobile" id="mainNav" style="display: none;">
@@ -364,6 +369,10 @@
                 <div class="form-group">
                     <label>Dominio</label>
                     <input type="text" id="vehDominio" placeholder="ABC123">
+                </div>
+                <div class="form-group">
+                    <label>Imagen (miniatura)</label>
+                    <input type="file" id="vehImagen" accept="image/*">
                 </div>
                 <button type="submit" class="btn btn-success">Agregar Vehículo</button>
             </form>
@@ -664,11 +673,16 @@
                 const container = document.getElementById('vehiculosList');
                 
                 container.innerHTML = vehiculos.length ? vehiculos.map(v => `
-                    <div class="card">
-                        <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
-                        <p><strong>Año:</strong> ${v.anio}</p>
-                        <p><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
-                        <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                    <div class="card" style="display:flex; gap:12px; align-items:center;">
+                        <div style="width:110px; flex: 0 0 110px;">
+                            <img src="${v.imagen || '/assets/placeholder-car.png'}" alt="${v.marca} ${v.modelo}" style="width:100%; height:80px; object-fit:cover; border-radius:8px;">
+                        </div>
+                        <div style="flex:1;">
+                            <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
+                            <p><strong>Año:</strong> ${v.anio}</p>
+                            <p><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
+                            <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                        </div>
                     </div>
                 `).join('') : '<p class="empty-message">No hay vehículos</p>';
             } catch (e) {
@@ -944,7 +958,7 @@
             event.preventDefault();
             
             try {
-                await apiCall('/api/vehiculos', 'POST', {
+                const payload = {
                     tipo: document.getElementById('vehTipo').value,
                     marca: document.getElementById('vehMarca').value,
                     modelo: document.getElementById('vehModelo').value,
@@ -953,12 +967,30 @@
                     condicion: document.getElementById('vehCondicion').value,
                     precio: document.getElementById('vehPrecio').value,
                     dominio: document.getElementById('vehDominio').value
-                });
-                alert('✅ Vehículo agregado');
-                event.target.reset();
-                cargarVehiculos();
+                };
+
+                const fileInput = document.getElementById('vehImagen');
+                if (fileInput && fileInput.files && fileInput.files.length) {
+                    const file = fileInput.files[0];
+                    const reader = new FileReader();
+                    const base64 = await new Promise((resolve, reject) => {
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                    payload.imagen_base64 = base64;
+                }
+
+                const result = await apiCall('/api/vehiculos', 'POST', payload);
+                if (result && result.vehiculo) {
+                    alert('✅ Vehículo agregado');
+                    event.target.reset();
+                    cargarVehiculos();
+                } else {
+                    alert('❌ ' + (result.message || 'Error al agregar vehículo'));
+                }
             } catch (e) {
-                alert('❌ Error: ' + e.message);
+                alert('❌ Error: ' + (e.message || e));
             }
         }
 
