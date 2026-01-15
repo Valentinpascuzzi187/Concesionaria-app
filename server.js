@@ -23,6 +23,7 @@ app.use(express.static(path.join(__dirname, 'src')));
 app.get('/mobile.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile.html')));
 app.get('/mobile-railway.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-railway.html')));
 app.get('/mobile-offline.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-offline.html')));
+app.get('/minuta-venta.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minuta-venta.html')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
 
 const dbConfig = {
