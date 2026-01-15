@@ -698,7 +698,7 @@
                 
                 container.innerHTML = auditoria.slice(0, 30).map(a => `
                     <tr>
-                        <td style="padding:5px; font-size:0.75em">${new Date(a.created_at).toLocaleString()}</td>
+                        <td style="padding:5px; font-size:0.75em">${new Date(a.fecha_dispositivo || a.fecha_accion || Date.now()).toLocaleString()}</td>
                         <td style="padding:5px">${a.usuario_nombre || 'Sistema'}</td>
                         <td style="padding:5px">${a.accion}</td>
                     </tr>

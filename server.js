@@ -14,6 +14,12 @@ app.use(express.json());
 // Servir archivos estáticos (para acceso móvil)
 app.use(express.static(path.join(__dirname, 'src')));
 
+// Servir páginas móviles desde /public sin sobrescribir index.html de Electron
+app.get('/mobile.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile.html')));
+app.get('/mobile-railway.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-railway.html')));
+app.get('/mobile-offline.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile-offline.html')));
+app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'public', 'manifest.json')));
+
 // Base de datos SQLite con respaldo automático
 const db = new sqlite3.Database('./concesionaria.db', (err) => {
   if (err) {
@@ -25,6 +31,51 @@ const db = new sqlite3.Database('./concesionaria.db', (err) => {
     setTimeout(crearUsuarioPremium, 1000);
     // Iniciar sistema de respaldo automático
     setTimeout(iniciarSistemaRespaldo, 2000);
+  }
+});
+
+app.post('/api/usuarios/crear-admin', (req, res) => {
+  try {
+    const { usuario_premium_id, nombre, email, password } = req.body;
+
+    if (!usuario_premium_id || !nombre || !email || !password) {
+      return res.status(400).json({ message: 'Datos incompletos' });
+    }
+
+    db.get('SELECT id FROM usuarios WHERE id = ? AND es_premium = 1 AND habilitado = 1', [usuario_premium_id], (err, premiumRow) => {
+      if (err) return res.status(500).json({ message: 'Error en el servidor' });
+      if (!premiumRow) return res.status(403).json({ message: 'No autorizado' });
+
+      db.run(
+        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, 0, 1)',
+        [nombre, email, password, 'administrador'],
+        function(err) {
+          if (err) {
+            if (String(err.message || '').includes('UNIQUE')) {
+              return res.status(400).json({ message: 'El email ya está registrado' });
+            }
+            return res.status(500).json({ message: 'Error al crear administrador' });
+          }
+
+          registrarAuditoria(
+            usuario_premium_id,
+            'CREACION_ADMIN_LIMITADO',
+            'usuarios',
+            this.lastID,
+            null,
+            { nombre, email, rol: 'administrador' },
+            { ip_address: req.ip || req.connection.remoteAddress }
+          );
+
+          res.status(201).json({
+            message: 'Administrador creado',
+            user: { id: this.lastID, nombre, email, rol: 'administrador', es_premium: 0, habilitado: 1 }
+          });
+        }
+      );
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error en el servidor' });
   }
 });
 
@@ -471,20 +522,51 @@ function initTables() {
     FOREIGN KEY (usuario_premium_id) REFERENCES usuarios (id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS dispositivos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER,
+    mac_address TEXT,
+    dispositivo_id TEXT UNIQUE,
+    modelo TEXT,
+    plataforma TEXT,
+    navegador TEXT,
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultimo_acceso DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  )`);
+
   // Tabla de tracking de sesiones y actividad
   db.run(`CREATE TABLE IF NOT EXISTS tracking_sesiones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario_id INTEGER NOT NULL,
-    fecha_login DATETIME,
+    usuario_id INTEGER,
+    fecha_login DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_logout DATETIME,
     ip_address TEXT,
     user_agent TEXT,
+    dispositivo_id TEXT,
+    dispositivo_info TEXT,
     duracion_segundos INTEGER,
-    paginas_visitadas INTEGER DEFAULT 0,
-    acciones_realizadas INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
   )`);
+
+  db.serialize(() => {
+    const ensureColumn = (table, column, definition) => {
+      db.all(`PRAGMA table_info(${table})`, (err, rows) => {
+        if (err) return;
+        const exists = rows && rows.some(r => r.name === column);
+        if (!exists) {
+          db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+        }
+      });
+    };
+
+    ensureColumn('auditoria', 'dispositivo_id', 'TEXT');
+    ensureColumn('auditoria', 'dispositivo_info', 'TEXT');
+    ensureColumn('auditoria', 'fecha_dispositivo', 'DATETIME');
+
+    ensureColumn('tracking_sesiones', 'dispositivo_id', 'TEXT');
+    ensureColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
+  });
 
   // Tabla de tracking de navegación detallada
   db.run(`CREATE TABLE IF NOT EXISTS tracking_navegacion (
@@ -596,17 +678,58 @@ function crearUsuarioPremium() {
   });
 }
 
+// Función para registrar dispositivo
+function registrarDispositivo(usuarioId, dispositivoInfo) {
+  return new Promise((resolve, reject) => {
+    const { dispositivo_id, mac_address, modelo, plataforma, navegador } = dispositivoInfo;
+    
+    // Verificar si el dispositivo ya existe
+    db.get('SELECT id FROM dispositivos WHERE dispositivo_id = ?', [dispositivo_id], (err, row) => {
+      if (err) {
+        return reject(err);
+      }
+      
+      if (row) {
+        // Actualizar último acceso
+        db.run('UPDATE dispositivos SET fecha_ultimo_acceso = CURRENT_TIMESTAMP WHERE dispositivo_id = ?', 
+          [dispositivo_id], (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row.id);
+          }
+        });
+      } else {
+        // Crear nuevo dispositivo
+        db.run('INSERT INTO dispositivos (usuario_id, mac_address, dispositivo_id, modelo, plataforma, navegador) VALUES (?, ?, ?, ?, ?, ?)', 
+          [usuarioId, mac_address, dispositivo_id, modelo, plataforma, navegador], 
+          function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.lastID);
+          }
+        });
+      }
+    });
+  });
+}
+
 // Funciones de tracking y vigilancia
-function registrarSesion(usuarioId, ipAddress, userAgent) {
+function registrarSesion(usuarioId, ipAddress, userAgent, dispositivoInfo = {}) {
   return new Promise((resolve, reject) => {
     const query = `
-      INSERT INTO tracking_sesiones (usuario_id, fecha_login, ip_address, user_agent)
-      VALUES (?, CURRENT_TIMESTAMP, ?, ?)
+      INSERT INTO tracking_sesiones (usuario_id, fecha_login, ip_address, user_agent, dispositivo_id, dispositivo_info)
+      VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
     `;
-    
-    db.run(query, [usuarioId, ipAddress, userAgent], function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
+
+    const dispositivoId = dispositivoInfo && dispositivoInfo.dispositivo_id ? dispositivoInfo.dispositivo_id : null;
+    db.run(query, [usuarioId, ipAddress, userAgent, dispositivoId, JSON.stringify(dispositivoInfo)], function(err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(this.lastID);
+      }
     });
   });
 }
@@ -700,27 +823,73 @@ function crearAlertaPremium(usuarioPremiumId, titulo, mensaje, tipoAlerta, usuar
 }
 
 // Funciones de auditoría y control
-function registrarAuditoria(usuarioId, accion, tablaAfectada, registroId, datosAnteriores, datosNuevos) {
+function registrarAuditoria(usuarioId, accion, tablaAfectada, registroId, arg5 = null, arg6 = null, arg7 = null) {
+  let datosAnteriores = null;
+  let datosNuevos = null;
+  let meta = {};
+
+  if (arg7 && typeof arg7 === 'object') {
+    meta = arg7;
+  }
+
+  // Firma legacy A: (usuarioId, accion, tabla, registroId, sesionId, detalles)
+  // Firma legacy B: (usuarioId, accion, tabla, registroId, datosAnteriores, datosNuevos)
+  if (typeof arg5 === 'number' && arg6 && typeof arg6 === 'object' && !Array.isArray(arg6)) {
+    datosAnteriores = null;
+    datosNuevos = arg6;
+  } else {
+    datosAnteriores = arg5;
+    datosNuevos = arg6;
+  }
+
   const query = `
-    INSERT INTO auditoria (usuario_id, accion, tabla_afectada, registro_id, datos_anteriores, datos_nuevos)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO auditoria (usuario_id, accion, tabla_afectada, registro_id, datos_anteriores, datos_nuevos, ip_address, dispositivo_id, dispositivo_info, fecha_dispositivo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
-  db.run(query, [usuarioId, accion, tablaAfectada, registroId, JSON.stringify(datosAnteriores), JSON.stringify(datosNuevos)]);
-  
-  // Notificar al usuario premium si no es el mismo usuario
-  if (usuarioId) {
-    db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId], (err, row) => {
-      if (!err && row && !row.es_premium) {
-        // Buscar usuario premium y notificar
-        db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
-          if (!err && premiumUser) {
-            crearNotificacion(premiumUser.id, 'Cambio Registrado', `El usuario ${usuarioId} realizó: ${accion} en ${tablaAfectada}`, 'auditoria');
+
+  const ipAddress = meta.ip_address || null;
+  const dispositivoId = meta.dispositivo_id || (meta.dispositivo_info && meta.dispositivo_info.dispositivo_id) || null;
+  const dispositivoInfo = meta.dispositivo_info ? JSON.stringify(meta.dispositivo_info) : null;
+  const fechaDispositivo = meta.fecha_dispositivo || (meta.dispositivo_info && meta.dispositivo_info.fecha_dispositivo) || null;
+
+  db.run(
+    query,
+    [
+      usuarioId,
+      accion,
+      tablaAfectada,
+      registroId,
+      JSON.stringify(datosAnteriores ?? null),
+      JSON.stringify(datosNuevos ?? null),
+      ipAddress,
+      dispositivoId,
+      dispositivoInfo,
+      fechaDispositivo
+    ],
+    (err) => {
+      if (err) {
+        console.error('Error al registrar auditoría:', err);
+        return;
+      }
+
+      if (usuarioId) {
+        db.get('SELECT es_premium FROM usuarios WHERE id = ?', [usuarioId], (err, row) => {
+          if (!err && row && !row.es_premium) {
+            db.get('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1', (err, premiumUser) => {
+              if (!err && premiumUser) {
+                crearNotificacion(
+                  premiumUser.id,
+                  'Cambio Registrado',
+                  `El usuario ${usuarioId} realizó: ${accion} en ${tablaAfectada}`,
+                  'auditoria'
+                );
+              }
+            });
           }
         });
       }
-    });
-  }
+    }
+  );
 }
 
 function crearNotificacion(usuarioPremiumId, titulo, mensaje, tipo) {
@@ -820,7 +989,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, dispositivo_info = {} } = req.body;
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
     
@@ -861,11 +1030,18 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(401).json({ message: 'Credenciales inválidas' });
       }
 
+      // Registrar dispositivo
+      if (dispositivo_info && dispositivo_info.dispositivo_id) {
+        registrarDispositivo(row.id, dispositivo_info).catch(err => {
+          console.error('Error al registrar dispositivo:', err);
+        });
+      }
+
       // Registrar sesión exitosa
-      registrarSesion(row.id, ipAddress, userAgent).then(sesionId => {
+      registrarSesion(row.id, ipAddress, userAgent, dispositivo_info).then(sesionId => {
         // Registrar acción de login solo si no es IP permitida
         if (!isAllowedIP) {
-          registrarAccion(row.id, sesionId, 'LOGIN_EXITOSO', 'auth', { email }, ipAddress);
+          registrarAccion(row.id, sesionId, 'LOGIN_EXITOSO', 'auth', { email, dispositivo: dispositivo_info }, ipAddress);
         }
         
         // Crear alerta para el admin premium si no es el usuario premium y no es IP permitida
@@ -874,7 +1050,7 @@ app.post('/api/auth/login', async (req, res) => {
             if (!err && premiumUser) {
               crearAlertaPremium(premiumUser.id, '🔐 Usuario Conectado', 
                 `El usuario ${row.nombre} (${row.email}) acaba de iniciar sesión`, 
-                'login_usuario', row.id, { email, ipAddress, userAgent });
+                'login_usuario', row.id, { email, ipAddress, userAgent, dispositivo: dispositivo_info });
             }
           });
         }
@@ -887,6 +1063,7 @@ app.post('/api/auth/login', async (req, res) => {
             email: row.email,
             rol: row.rol,
             es_premium: row.es_premium,
+            es_admin: row.rol === 'administrador' && !row.es_premium, // Administrador limitado
             habilitado: row.habilitado,
             sesion_id: sesionId
           }
@@ -941,7 +1118,7 @@ app.post('/api/tracking/navegacion', async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     
     if (usuario_id && sesion_id) {
-      registrarNavegacion(sesionId, usuario_id, seccion, accion, detalles, ipAddress);
+      registrarNavegacion(sesion_id, usuario_id, seccion, accion, detalles, ipAddress);
     }
     
     res.json({ message: 'Navegación registrada' });

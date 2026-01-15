@@ -506,9 +506,56 @@
             document.getElementById('mainNav').style.display = show ? 'flex' : 'none';
             document.getElementById('logoutBtn').style.display = show ? 'block' : 'none';
             
+            // Mostrar botones premium solo para usuarios premium
             document.querySelectorAll('.premium-only').forEach(btn => {
                 btn.style.display = (show && currentUser && currentUser.es_premium) ? 'inline-block' : 'none';
             });
+            
+            // Mostrar botones de administrador limitado
+            document.querySelectorAll('.admin-only').forEach(btn => {
+                btn.style.display = (show && currentUser && currentUser.es_admin) ? 'inline-block' : 'none';
+            });
+        }
+
+        // Función para obtener información del dispositivo
+        function getDeviceInfo() {
+            return {
+                dispositivo_id: getDeviceId(),
+                mac_address: 'N/A', // No se puede obtener MAC desde web por seguridad
+                modelo: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop',
+                plataforma: navigator.platform,
+                navegador: getBrowserName(),
+                fecha_dispositivo: new Date().toISOString()
+            };
+        }
+
+        function getDeviceId() {
+            // Generar ID único basado en fingerprint del navegador
+            const fingerprint = [
+                navigator.userAgent,
+                navigator.language,
+                screen.width + 'x' + screen.height,
+                new Date().getTimezoneOffset(),
+                navigator.hardwareConcurrency || 'N/A'
+            ].join('|');
+            
+            // Hash simple del fingerprint
+            let hash = 0;
+            for (let i = 0; i < fingerprint.length; i++) {
+                const char = fingerprint.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return 'dev_' + Math.abs(hash).toString(16);
+        }
+
+        function getBrowserName() {
+            const userAgent = navigator.userAgent;
+            if (userAgent.includes('Chrome')) return 'Chrome';
+            if (userAgent.includes('Firefox')) return 'Firefox';
+            if (userAgent.includes('Safari')) return 'Safari';
+            if (userAgent.includes('Edge')) return 'Edge';
+            return 'Unknown';
         }
 
         // API Functions
@@ -535,11 +582,23 @@
 
             try {
                 API_URL = getServerURL();
-                const result = await apiCall('/api/auth/login', 'POST', { email, password });
+                
+                // Obtener información del dispositivo
+                const dispositivoInfo = getDeviceInfo();
+                console.log('📱 Info del dispositivo:', dispositivoInfo);
+                
+                const result = await apiCall('/api/auth/login', 'POST', { 
+                    email, 
+                    password, 
+                    dispositivo_info: dispositivoInfo 
+                });
                 
                 if (result.user) {
                     currentUser = result.user;
                     currentSessionId = result.user.sesion_id;
+                    
+                    // Guardar info del dispositivo para futuras auditorías
+                    localStorage.setItem('deviceInfo', JSON.stringify(dispositivoInfo));
                     
                     document.getElementById('userInfo').textContent = `${currentUser.nombre} (${currentUser.rol})`;
                     showMainMenu(true);
@@ -698,7 +757,7 @@
                 
                 container.innerHTML = auditoria.slice(0, 30).map(a => `
                     <tr>
-                        <td style="padding:5px; font-size:0.75em">${new Date(a.created_at).toLocaleString()}</td>
+                        <td style="padding:5px; font-size:0.75em">${new Date(a.fecha_dispositivo || a.fecha_accion || Date.now()).toLocaleString()}</td>
                         <td style="padding:5px">${a.usuario_nombre || 'Sistema'}</td>
                         <td style="padding:5px">${a.accion}</td>
                     </tr>

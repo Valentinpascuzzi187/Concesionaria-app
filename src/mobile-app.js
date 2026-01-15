@@ -5,13 +5,38 @@ const API_URL = 'http://192.168.1.100:4000'; // Cambia esto por tu IP local
 let currentUser = null;
 let currentSessionId = null;
 
+function getDeviceInfo() {
+  const fingerprint = [
+    navigator.userAgent,
+    navigator.language,
+    (screen && screen.width ? `${screen.width}x${screen.height}` : 'N/A'),
+    new Date().getTimezoneOffset()
+  ].join('|');
+
+  let hash = 0;
+  for (let i = 0; i < fingerprint.length; i++) {
+    const char = fingerprint.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+
+  return {
+    dispositivo_id: 'dev_' + Math.abs(hash).toString(16),
+    mac_address: 'N/A',
+    modelo: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop',
+    plataforma: navigator.platform,
+    navegador: navigator.userAgent,
+    fecha_dispositivo: new Date().toISOString()
+  };
+}
+
 // Funciones de API para móvil (sin Electron)
 const api = {
   login: async (email, password) => {
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, dispositivo_info: getDeviceInfo() })
     });
     return response.json();
   },
