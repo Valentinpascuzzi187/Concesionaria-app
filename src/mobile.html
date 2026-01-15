@@ -446,6 +446,38 @@
                     <label>Observaciones</label>
                     <input type="text" id="minObservaciones">
                 </div>
+                <div class="form-group">
+                    <label>Financiamiento</label>
+                    <select id="minFinanciamiento">
+                        <option value="">Ninguno</option>
+                        <option value="financiera">Financiera</option>
+                        <option value="concesionaria">Concesionaria</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Anticipo (si aplica)</label>
+                    <input type="number" id="minFinAnticipo" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>Cuotas (si aplica)</label>
+                    <input type="number" id="minFinCuotas" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>Precio financiado (si aplica)</label>
+                    <input type="number" id="minFinPrecio" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label>¿Trae vehículo en parte de pago?</label>
+                    <input type="checkbox" id="minTradein">
+                </div>
+                <div class="form-group">
+                    <label>Datos del vehículo entregado (marca, modelo, año, valor)</label>
+                    <input type="text" id="minTradeinDatos" placeholder="Ej: Toyota Corolla 2015 - valor 1.200.000">
+                </div>
+                <div class="form-group">
+                    <label>Monto de reserva</label>
+                    <input type="number" id="minReservaMonto" value="1000000">
+                </div>
                 <button class="btn btn-success" onclick="submitMinuta()">Confirmar Minuta</button>
                 <button class="btn btn-secondary" onclick="toggleMinutaForm()">Cancelar</button>
             </div>
@@ -717,15 +749,35 @@
                         <p><strong>Vehículo:</strong> ${m.marca} ${m.modelo}</p>
                         <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
                         <p><strong>Precio:</strong> $${m.precio_final?.toLocaleString() || 'N/A'}</p>
+                        <p><strong>Financiamiento:</strong> ${m.financiamiento || 'Ninguno'}</p>
+                        <p><strong>Reserva:</strong> $${(m.reserva_monto || 0).toLocaleString()}</p>
+                        ${m.tradein_proporciona ? `<p><strong>Trade-in:</strong> ${m.tradein_datos || '-'}</p>` : ''}
                         ${currentUser && currentUser.es_premium ? `
                             <div style="margin-top:10px;">
                                 <button class="btn btn-danger" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
+                                <button class="btn btn-secondary" onclick="editarMinutaPrompt(${m.id})">✏️ Editar</button>
                             </div>
                         ` : ''}
                     </div>
                 `).join('') : '<p class="empty-message">No hay minutas</p>';
             } catch (e) {
                 document.getElementById('minutasList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+
+        function editarMinutaPrompt(id) {
+            const nuevoPrecio = prompt('Nuevo precio final (dejar vacío para no modificar)');
+            const nuevasObs = prompt('Nuevas observaciones (dejar vacío para no modificar)');
+            const reserva = prompt('Actualizar monto de reserva (dejar vacío para no modificar)');
+            const payload = { usuario_id: currentUser?.id };
+            if (nuevoPrecio) payload.precio_final = Number(nuevoPrecio);
+            if (nuevasObs) payload.observaciones = nuevasObs;
+            if (reserva) payload.reserva_monto = Number(reserva);
+            if (Object.keys(payload).length > 1) {
+                apiCall(`/api/minutas/${id}`, 'PUT', payload).then(res => {
+                    alert(res.message || 'Minuta actualizada');
+                    cargarMinutas();
+                }).catch(err => alert('Error: ' + err.message));
             }
         }
 
@@ -770,6 +822,13 @@
             const precio_original = parseFloat(document.getElementById('minPrecioOriginal').value);
             const precio_final = parseFloat(document.getElementById('minPrecioFinal').value);
             const observaciones = document.getElementById('minObservaciones').value;
+            const financiamiento = document.getElementById('minFinanciamiento').value;
+            const financiamiento_anticipo = parseFloat(document.getElementById('minFinAnticipo').value) || 0;
+            const financiamiento_cuotas = parseInt(document.getElementById('minFinCuotas').value) || 0;
+            const financiamiento_precio = parseFloat(document.getElementById('minFinPrecio').value) || 0;
+            const tradein_proporciona = document.getElementById('minTradein').checked;
+            const tradein_datos = document.getElementById('minTradeinDatos').value;
+            const reserva_monto = parseFloat(document.getElementById('minReservaMonto').value) || 0;
 
             if (!vehiculo_id || !cliente_id || !precio_original || !precio_final) {
                 alert('⚠️ Completa todos los campos');
@@ -777,7 +836,11 @@
             }
 
             try {
-                const result = await apiCall('/api/minutas', 'POST', { vehiculo_id, cliente_id, vendedor_id: currentUser?.id || null, precio_original, precio_final, observaciones });
+                const payload = { vehiculo_id, cliente_id, vendedor_id: currentUser?.id || null, precio_original, precio_final, observaciones,
+                    financiamiento, financiamiento_anticipo, financiamiento_cuotas, financiamiento_precio,
+                    tradein_proporciona, tradein_datos, reserva_monto };
+
+                const result = await apiCall('/api/minutas', 'POST', payload);
                 if (result && result.minuta) {
                     alert('✅ Minuta creada');
                     toggleMinutaForm();

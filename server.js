@@ -421,6 +421,13 @@ async function initTables() {
     precio_final DECIMAL(12,2) NOT NULL,
     estado VARCHAR(50) DEFAULT 'iniciada',
     observaciones TEXT,
+    financiamiento VARCHAR(255) NULL,
+    financiamiento_anticipo DECIMAL(12,2) NULL,
+    financiamiento_cuotas INT NULL,
+    financiamiento_precio DECIMAL(12,2) NULL,
+    tradein_proporciona TINYINT(1) DEFAULT 0,
+    tradein_datos TEXT NULL,
+    reserva_monto DECIMAL(12,2) DEFAULT 0,
     eliminado TINYINT(1) DEFAULT 0,
     eliminado_por INT NULL,
     fecha_eliminacion DATETIME NULL,
@@ -612,6 +619,14 @@ async function ensureColumns() {
   if (!(await colExists('tracking_sesiones', 'dispositivo_info'))) await addColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
   // vehiculos: imagen
   if (!(await colExists('vehiculos', 'imagen'))) await addColumn('vehiculos', 'imagen', "VARCHAR(255) NULL");
+  // minutas: campos de financiamiento / trade-in / reserva
+  if (!(await colExists('minutas', 'financiamiento'))) await addColumn('minutas', 'financiamiento', 'VARCHAR(255) NULL');
+  if (!(await colExists('minutas', 'financiamiento_anticipo'))) await addColumn('minutas', 'financiamiento_anticipo', 'DECIMAL(12,2) NULL');
+  if (!(await colExists('minutas', 'financiamiento_cuotas'))) await addColumn('minutas', 'financiamiento_cuotas', 'INT NULL');
+  if (!(await colExists('minutas', 'financiamiento_precio'))) await addColumn('minutas', 'financiamiento_precio', 'DECIMAL(12,2) NULL');
+  if (!(await colExists('minutas', 'tradein_proporciona'))) await addColumn('minutas', 'tradein_proporciona', 'TINYINT(1) DEFAULT 0');
+  if (!(await colExists('minutas', 'tradein_datos'))) await addColumn('minutas', 'tradein_datos', 'TEXT NULL');
+  if (!(await colExists('minutas', 'reserva_monto'))) await addColumn('minutas', 'reserva_monto', 'DECIMAL(12,2) DEFAULT 0');
 }
 
 /* =========================
@@ -1402,7 +1417,21 @@ app.get('/api/minutas', async (req, res) => {
 
 app.post('/api/minutas', async (req, res) => {
   try {
-    const { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones } = req.body;
+    const {
+      vehiculo_id,
+      cliente_id,
+      vendedor_id,
+      precio_original,
+      precio_final,
+      observaciones,
+      financiamiento,
+      financiamiento_anticipo,
+      financiamiento_cuotas,
+      financiamiento_precio,
+      tradein_proporciona,
+      tradein_datos,
+      reserva_monto
+    } = req.body;
     const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
 
     if (!vehiculo_id || !cliente_id || !vendedor_id || !precio_original || !precio_final) {
@@ -1477,9 +1506,20 @@ app.post('/api/minutas', async (req, res) => {
       await conn.beginTransaction();
 
       const [result] = await conn.execute(
-        `INSERT INTO minutas (vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones, estado)
-         VALUES (?, ?, ?, ?, ?, ?, 'reservada')`,
-        [vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones]
+        `INSERT INTO minutas (
+            vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones, financiamiento,
+            financiamiento_anticipo, financiamiento_cuotas, financiamiento_precio, tradein_proporciona, tradein_datos, reserva_monto, estado
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reservada')`,
+        [
+          vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, observaciones || null,
+          financiamiento || null,
+          (financiamiento_anticipo && Number(financiamiento_anticipo)) || null,
+          (financiamiento_cuotas && Number(financiamiento_cuotas)) || null,
+          (financiamiento_precio && Number(financiamiento_precio)) || null,
+          tradein_proporciona ? 1 : 0,
+          tradein_datos || null,
+          (reserva_monto && Number(reserva_monto)) || 0
+        ]
       );
       const minutaId = result.insertId;
 
@@ -1496,7 +1536,7 @@ app.post('/api/minutas', async (req, res) => {
         'minutas',
         minutaId,
         null,
-        { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final }
+        { vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, financiamiento, reserva_monto }
       );
 
       const premiumUser = await qFirst('SELECT id FROM usuarios WHERE es_premium = 1 AND habilitado = 1 LIMIT 1');
@@ -1513,7 +1553,22 @@ app.post('/api/minutas', async (req, res) => {
 
       res.status(201).json({
         message: 'Minuta creada correctamente y vehículo reservado',
-        minuta: { id: minutaId, vehiculo_id, cliente_id, vendedor_id, precio_original, precio_final, estado: 'reservada' }
+        minuta: {
+          id: minutaId,
+          vehiculo_id,
+          cliente_id,
+          vendedor_id,
+          precio_original,
+          precio_final,
+          estado: 'reservada',
+          financiamiento,
+          financiamiento_anticipo,
+          financiamiento_cuotas,
+          financiamiento_precio,
+          tradein_proporciona: tradein_proporciona ? 1 : 0,
+          tradein_datos,
+          reserva_monto: (reserva_monto && Number(reserva_monto)) || 0
+        }
       });
 
     } catch (e) {
@@ -1533,7 +1588,10 @@ app.post('/api/minutas', async (req, res) => {
 app.put('/api/minutas/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { usuario_id, precio_final, observaciones, estado } = req.body;
+    const { usuario_id, precio_final, observaciones, estado,
+      financiamiento, financiamiento_anticipo, financiamiento_cuotas, financiamiento_precio,
+      tradein_proporciona, tradein_datos, reserva_monto
+    } = req.body;
 
     const minuta = await qFirst('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id]);
     if (!minuta) return res.status(404).json({ message: 'Minuta no encontrada' });
@@ -1552,6 +1610,13 @@ app.put('/api/minutas/:id', async (req, res) => {
     if (typeof precio_final !== 'undefined') { updates.push('precio_final = ?'); params.push(precio_final); }
     if (typeof observaciones !== 'undefined') { updates.push('observaciones = ?'); params.push(observaciones); }
     if (typeof estado !== 'undefined') { updates.push('estado = ?'); params.push(estado); }
+    if (typeof financiamiento !== 'undefined') { updates.push('financiamiento = ?'); params.push(financiamiento); }
+    if (typeof financiamiento_anticipo !== 'undefined') { updates.push('financiamiento_anticipo = ?'); params.push(financiamiento_anticipo); }
+    if (typeof financiamiento_cuotas !== 'undefined') { updates.push('financiamiento_cuotas = ?'); params.push(financiamiento_cuotas); }
+    if (typeof financiamiento_precio !== 'undefined') { updates.push('financiamiento_precio = ?'); params.push(financiamiento_precio); }
+    if (typeof tradein_proporciona !== 'undefined') { updates.push('tradein_proporciona = ?'); params.push(tradein_proporciona ? 1 : 0); }
+    if (typeof tradein_datos !== 'undefined') { updates.push('tradein_datos = ?'); params.push(tradein_datos); }
+    if (typeof reserva_monto !== 'undefined') { updates.push('reserva_monto = ?'); params.push(reserva_monto); }
 
     if (updates.length === 0) return res.status(400).json({ message: 'Nada para actualizar' });
 
