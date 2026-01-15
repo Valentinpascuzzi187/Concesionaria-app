@@ -4,6 +4,42 @@ let currentUser = null;
 let currentSessionId = null;
 let trackingInterval = null;
 
+// Fallback API client: si window.api no está disponible (navegador web), usamos fetch
+(() => {
+  try {
+    const BASE = (location.protocol && location.host) ? `${location.protocol}//${location.host}` : 'http://localhost:4000';
+
+    const call = async (endpoint, method = 'GET', body = null) => {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      const resp = await fetch(`${BASE}${endpoint}`, opts);
+      return resp.ok ? resp.json() : Promise.reject(await resp.json());
+    };
+
+    const apiFallback = {
+      login: (email, password) => call('/api/auth/login', 'POST', { email, password }),
+      register: (nombre, email, password, rol) => call('/api/auth/register', 'POST', { nombre, email, password, rol }),
+      logout: (usuario_id, sesion_id) => call('/api/auth/logout', 'POST', { usuario_id, sesion_id }),
+      getVehiculos: () => call('/api/vehiculos'),
+      getClientes: () => call('/api/clientes'),
+      getMinutas: () => call('/api/minutas'),
+      createVehiculo: (data) => call('/api/vehiculos', 'POST', data),
+      createCliente: (data) => call('/api/clientes', 'POST', data),
+      createMinuta: (data) => call('/api/minutas', 'POST', data),
+      deleteVehiculo: (id) => call(`/api/vehiculos/${id}`, 'DELETE'),
+      deleteCliente: (id) => call(`/api/clientes/${id}`, 'DELETE'),
+      deleteMinuta: (id) => call(`/api/minutas/${id}`, 'DELETE'),
+      getUsuariosTodos: () => call('/api/usuarios/todos'),
+      suspenderUsuario: (id, motivo, mensaje, duracion, usuario_premium_id) => call(`/api/usuarios/${id}/suspender`, 'POST', { motivo, mensaje, duracion, usuario_premium_id }),
+      reactivarUsuario: (id, usuario_premium_id) => call(`/api/usuarios/${id}/reactivar`, 'POST', { usuario_premium_id })
+    };
+
+    if (!window.api) window.api = apiFallback;
+  } catch (e) {
+    console.warn('API fallback no inicializado:', e.message);
+  }
+})();
+
 // Función de tracking automático
 async function trackNavigation(section, action, details = '') {
   if (currentUser && currentSessionId && !currentUser.es_premium) {

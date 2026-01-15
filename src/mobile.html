@@ -297,6 +297,7 @@
                 <label>🎭 Rol</label>
                 <select id="regRol">
                     <option value="vendedor">Vendedor</option>
+                    <option value="administrador">Administrador</option>
                 </select>
             </div>
             <button class="btn btn-success" onclick="register()">Registrarse</button>
@@ -408,6 +409,38 @@
         <!-- Minutas -->
         <section id="minutas" class="section">
             <h2>📋 Minutas</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div></div>
+                <div>
+                    <button class="btn btn-primary" onclick="toggleMinutaForm()" style="margin-right:8px;">➕ Añadir Minuta</button>
+                </div>
+            </div>
+
+            <div id="minutaForm" style="display:none; margin-bottom:15px; background:#f1f5f9; padding:12px; border-radius:10px;">
+                <div class="form-group">
+                    <label>Vehículo</label>
+                    <select id="minVehiculo"></select>
+                </div>
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <select id="minCliente"></select>
+                </div>
+                <div class="form-group">
+                    <label>Precio Original</label>
+                    <input type="number" id="minPrecioOriginal">
+                </div>
+                <div class="form-group">
+                    <label>Precio Final</label>
+                    <input type="number" id="minPrecioFinal">
+                </div>
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <input type="text" id="minObservaciones">
+                </div>
+                <button class="btn btn-success" onclick="submitMinuta()">Confirmar Minuta</button>
+                <button class="btn btn-secondary" onclick="toggleMinutaForm()">Cancelar</button>
+            </div>
+
             <div class="list-container" id="minutasList">
                 <p class="empty-message">Cargando minutas...</p>
             </div>
@@ -649,17 +682,82 @@
             try {
                 const minutas = await apiCall('/api/minutas');
                 const container = document.getElementById('minutasList');
-                
                 container.innerHTML = minutas.length ? minutas.map(m => `
                     <div class="card">
                         <h3>Minuta #${m.id}</h3>
                         <p><strong>Vehículo:</strong> ${m.marca} ${m.modelo}</p>
                         <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
                         <p><strong>Precio:</strong> $${m.precio_final?.toLocaleString() || 'N/A'}</p>
+                        ${currentUser && currentUser.es_premium ? `
+                            <div style="margin-top:10px;">
+                                <button class="btn btn-danger" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
+                            </div>
+                        ` : ''}
                     </div>
                 `).join('') : '<p class="empty-message">No hay minutas</p>';
             } catch (e) {
                 document.getElementById('minutasList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+
+        function toggleMinutaForm() {
+            const form = document.getElementById('minutaForm');
+            form.style.display = (form.style.display === 'none' || !form.style.display) ? 'block' : 'none';
+            if (form.style.display === 'block') loadMinutaOptions();
+        }
+
+        async function loadMinutaOptions() {
+            try {
+                const vehiculos = await apiCall('/api/vehiculos');
+                const clientes = await apiCall('/api/clientes');
+
+                const vehiculosDisponibles = vehiculos.filter(v => v.estado === 'disponible');
+
+                const vehiculoSelect = document.getElementById('minVehiculo');
+                const clienteSelect = document.getElementById('minCliente');
+
+                vehiculoSelect.innerHTML = '<option value="">Seleccionar vehículo...</option>' + vehiculosDisponibles.map(v => `
+                    <option value="${v.id}" data-precio="${v.precio}">${v.marca} ${v.modelo} (${v.anio}) - $${v.precio?.toLocaleString()}</option>
+                `).join('');
+
+                clienteSelect.innerHTML = '<option value="">Seleccionar cliente...</option>' + clientes.map(c => `
+                    <option value="${c.id}">${c.nombre} ${c.apellido} - DNI: ${c.dni}</option>
+                `).join('');
+
+                document.getElementById('minVehiculo').addEventListener('change', (e) => {
+                    const opt = e.target.options[e.target.selectedIndex];
+                    const precio = opt ? opt.getAttribute('data-precio') : '';
+                    document.getElementById('minPrecioOriginal').value = precio || '';
+                    document.getElementById('minPrecioFinal').value = precio || '';
+                });
+            } catch (err) {
+                console.error('Error cargando opciones de minuta:', err);
+            }
+        }
+
+        async function submitMinuta() {
+            const vehiculo_id = parseInt(document.getElementById('minVehiculo').value);
+            const cliente_id = parseInt(document.getElementById('minCliente').value);
+            const precio_original = parseFloat(document.getElementById('minPrecioOriginal').value);
+            const precio_final = parseFloat(document.getElementById('minPrecioFinal').value);
+            const observaciones = document.getElementById('minObservaciones').value;
+
+            if (!vehiculo_id || !cliente_id || !precio_original || !precio_final) {
+                alert('⚠️ Completa todos los campos');
+                return;
+            }
+
+            try {
+                const result = await apiCall('/api/minutas', 'POST', { vehiculo_id, cliente_id, vendedor_id: currentUser?.id || null, precio_original, precio_final, observaciones });
+                if (result && result.minuta) {
+                    alert('✅ Minuta creada');
+                    toggleMinutaForm();
+                    cargarMinutas();
+                } else {
+                    alert('❌ ' + (result.message || 'Error al crear minuta'));
+                }
+            } catch (err) {
+                alert('❌ Error al crear minuta: ' + err.message);
             }
         }
 
