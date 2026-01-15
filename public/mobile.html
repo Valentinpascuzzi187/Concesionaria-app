@@ -630,6 +630,9 @@
                     currentUser = result.user;
                     currentSessionId = result.user.sesion_id;
                     
+                    // Persist current user for app sessions
+                    try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(e){}
+
                     document.getElementById('userInfo').textContent = `${currentUser.nombre} (${currentUser.rol})`;
                     showMainMenu(true);
                     showSection('dashboard');
@@ -835,6 +838,11 @@
                 return;
             }
 
+            if (!currentUser || !currentUser.id) {
+                alert('⚠️ Debes iniciar sesión para crear una minuta.');
+                return;
+            }
+
             try {
                 const payload = { vehiculo_id, cliente_id, vendedor_id: currentUser?.id || null, precio_original, precio_final, observaciones,
                     financiamiento, financiamiento_anticipo, financiamiento_cuotas, financiamiento_precio,
@@ -850,6 +858,25 @@
                 }
             } catch (err) {
                 alert('❌ Error al crear minuta: ' + err.message);
+            }
+        }
+
+        async function eliminarMinuta(id) {
+            if (!confirm('¿Estás seguro de que quieres eliminar esta minuta?')) return;
+            if (!currentUser || !currentUser.id) {
+                alert('⚠️ Debes iniciar sesión para eliminar minutas');
+                return;
+            }
+            try {
+                const res = await apiCall(`/api/minutas/${id}`, 'DELETE', { usuario_id: currentUser.id });
+                if (res && res.message) {
+                    alert('✅ ' + res.message);
+                    cargarMinutas();
+                } else {
+                    alert('❌ Error: ' + (res.message || 'No se pudo eliminar minuta'));
+                }
+            } catch (e) {
+                alert('❌ Error al eliminar minuta: ' + e.message);
             }
         }
 
@@ -1083,7 +1110,21 @@
             if (savedIP) {
                 document.getElementById('serverIP').value = savedIP;
             }
-            showMainMenu(false);
+            // Restore persisted user if any
+            try {
+                const saved = localStorage.getItem('currentUser');
+                if (saved) {
+                    currentUser = JSON.parse(saved);
+                    document.getElementById('userInfo').textContent = `${currentUser.nombre} (${currentUser.rol})`;
+                    showMainMenu(true);
+                    // optionally load dashboard data
+                    showSection('dashboard');
+                } else {
+                    showMainMenu(false);
+                }
+            } catch (e) {
+                showMainMenu(false);
+            }
         });
 
         // Funciones de descarga
