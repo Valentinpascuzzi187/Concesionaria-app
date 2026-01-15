@@ -634,7 +634,9 @@
 
             try {
                 API_URL = getServerURL();
-                const result = await apiCall('/api/auth/login', 'POST', { email, password });
+                const endpoint = '/api/auth/login';
+                console.log('Login -> calling', getServerURL() + endpoint);
+                const result = await apiCall(endpoint, 'POST', { email, password });
                 
                 if (result.user) {
                     currentUser = result.user;
@@ -649,9 +651,11 @@
                     
                     alert('✅ Bienvenido ' + currentUser.nombre);
                 } else if (result && result.__raw) {
-                    alert('❌ Error al iniciar sesión: servidor respondió con HTML/text:\n\n' + result.__raw.slice(0,200));
+                    alert('❌ Error al iniciar sesión: servidor respondió con HTML/text (status=' + result.status + ', content-type=' + result.contentType + '):\n\n' + (result.__raw || '').slice(0,1000));
+                    console.error('Login raw response', result);
                 } else if (result && result.__parseError) {
-                    alert('❌ Error al parsear JSON del servidor:\n' + (result.raw || '')); 
+                    alert('❌ Error al parsear JSON del servidor (status=' + result.status + '):\n' + (result.raw || ''));
+                    console.error('Login parse error', result);
                 } else {
                     alert('❌ ' + (result.message || 'Error al iniciar sesión'));
                 }
