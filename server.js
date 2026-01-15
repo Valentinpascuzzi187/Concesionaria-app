@@ -260,6 +260,53 @@ app.post('/api/importar-datos', async (req, res) => {
   }
 });
 
+// Ruta para verificar/crear usuario premium (para depuración)
+app.get('/api/verificar-premium', (req, res) => {
+  const premiumEmail = 'admin@concesionaria.com';
+  
+  db.get('SELECT * FROM usuarios WHERE email = ?', [premiumEmail], (err, row) => {
+    if (err) {
+      return res.status(500).json({ message: 'Error en la base de datos', error: err.message });
+    }
+    
+    if (row) {
+      res.json({ 
+        message: 'Usuario premium encontrado',
+        usuario: {
+          id: row.id,
+          nombre: row.nombre,
+          email: row.email,
+          rol: row.rol,
+          es_premium: row.es_premium,
+          habilitado: row.habilitado
+        }
+      });
+    } else {
+      // Crear usuario premium
+      db.run('INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)', 
+        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1], 
+        function(err) {
+          if (err) {
+            return res.status(500).json({ message: 'Error al crear usuario premium', error: err.message });
+          }
+          
+          res.json({ 
+            message: 'Usuario premium creado exitosamente',
+            usuario: {
+              id: this.lastID,
+              nombre: 'Dueño',
+              email: premiumEmail,
+              rol: 'administrador',
+              es_premium: true,
+              habilitado: true
+            }
+          });
+        }
+      );
+    }
+  });
+});
+
 // Ruta para exportar a Excel (descarga directa)
 app.get('/api/exportar-excel', async (req, res) => {
   try {
@@ -520,8 +567,8 @@ function crearUsuarioPremium() {
   db.get('SELECT id FROM usuarios WHERE email = ?', [premiumEmail], (err, row) => {
     if (!err && !row) {
       // Crear usuario premium
-      db.run('INSERT INTO usuarios (nombre, email, password, rol, es_premium) VALUES (?, ?, ?, ?, ?)', 
-        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1], 
+      db.run('INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)', 
+        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1], 
         function(err) {
           if (!err) {
             console.log('✅ Usuario premium creado exitosamente');
@@ -536,11 +583,15 @@ function crearUsuarioPremium() {
               rol: 'administrador', 
               es_premium: true 
             });
+          } else {
+            console.error('❌ Error al crear usuario premium:', err);
           }
         }
       );
     } else if (!err && row) {
       console.log('✅ Usuario premium ya existe');
+    } else if (err) {
+      console.error('❌ Error verificando usuario premium:', err);
     }
   });
 }

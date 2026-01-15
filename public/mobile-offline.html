@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#667eea">
+    <title>Concesionaria Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.3em;
+            color: #333;
+            text-align: center;
+        }
+
+        .offline-notice {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #856404;
+        }
+
+        .nav-mobile {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .nav-btn {
+            background: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+
+        .nav-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .section {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .section h2 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .card h3 {
+            font-size: 1em;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .estado-disponible { color: #28a745; font-weight: bold; }
+        .estado-reservado { color: #ffc107; font-weight: bold; }
+        .estado-vendido { color: #dc3545; font-weight: bold; }
+
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .data-export {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .data-export h4 {
+            margin: 0 0 10px 0;
+            color: #2e7d32;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 Concesionaria Pro</h1>
+        </div>
+
+        <div class="offline-notice">
+            📱 Modo Offline - Datos guardados localmente
+        </div>
+
+        <nav class="nav-mobile">
+            <button class="nav-btn active" onclick="showSection('dashboard')">🏠 Inicio</button>
+            <button class="nav-btn" onclick="showSection('vehiculos')">🚗 Stock</button>
+            <button class="nav-btn" onclick="showSection('clientes')">👥 Clientes</button>
+            <button class="nav-btn" onclick="showSection('minutas')">📋 Minutas</button>
+            <button class="nav-btn" onclick="showSection('exportar')">📊 Exportar</button>
+        </nav>
+
+        <!-- Dashboard -->
+        <section id="dashboard" class="section active">
+            <h2>🏠 Dashboard</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalVehiculos">0</div>
+                    <div class="stat-label">Vehículos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalClientes">0</div>
+                    <div class="stat-label">Clientes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalMinutas">0</div>
+                    <div class="stat-label">Minutas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDisponibles">0</div>
+                    <div class="stat-label">Disponibles</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>📱 Versión APK Offline</h3>
+                <p>Esta versión funciona completamente sin conexión a internet.</p>
+                <p>Todos los datos se guardan localmente en tu dispositivo.</p>
+            </div>
+        </section>
+
+        <!-- Vehículos -->
+        <section id="vehiculos" class="section">
+            <h2>🚗 Stock de Vehículos</h2>
+            <div class="list-container" id="vehiculosList">
+                <p class="empty-message">Cargando vehículos...</p>
+            </div>
+            
+            <h3 style="margin-top: 20px; margin-bottom: 15px;">➕ Agregar Vehículo</h3>
+            <form onsubmit="agregarVehiculo(event)">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select id="vehTipo" required>
+                        <option value="auto">Auto</option>
+                        <option value="camioneta">Camioneta</option>
+                        <option value="moto">Moto</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Marca</label>
+                    <input type="text" id="vehMarca" required placeholder="Ej: Toyota">
+                </div>
+                <div class="form-group">
+                    <label>Modelo</label>
+                    <input type="text" id="vehModelo" required placeholder="Ej: Corolla">
+                </div>
+                <div class="form-group">
+                    <label>Versión</label>
+                    <input type="text" id="vehVersion" placeholder="Ej: XEI">
+                </div>
+                <div class="form-group">
+                    <label>Año</label>
+                    <input type="number" id="vehAnio" required placeholder="2024">
+                </div>
+                <div class="form-group">
+                    <label>Condición</label>
+                    <select id="vehCondicion" required>
+                        <option value="nuevo">Nuevo</option>
+                        <option value="usado">Usado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Precio</label>
+                    <input type="number" id="vehPrecio" required placeholder="25000000">
+                </div>
+                <div class="form-group">
+                    <label>Dominio</label>
+                    <input type="text" id="vehDominio" placeholder="ABC123">
+                </div>
+                <button type="submit" class="btn btn-success">Agregar Vehículo</button>
+            </form>
+        </section>
+
+        <!-- Clientes -->
+        <section id="clientes" class="section">
+            <h2>👥 Clientes</h2>
+            <div class="list-container" id="clientesList">
+                <p class="empty-message">Cargando clientes...</p>
+            </div>
+            
+            <h3 style="margin-top: 20px; margin-bottom: 15px;">➕ Agregar Cliente</h3>
+            <form onsubmit="agregarCliente(event)">
+                <div class="form-group">
+                    <label>Nombre</label>
+                    <input type="text" id="cliNombre" required placeholder="Juan">
+                </div>
+                <div class="form-group">
+                    <label>Apellido</label>
+                    <input type="text" id="cliApellido" required placeholder="Pérez">
+                </div>
+                <div class="form-group">
+                    <label>DNI</label>
+                    <input type="text" id="cliDni" required placeholder="12345678">
+                </div>
+                <div class="form-group">
+                    <label>Teléfono</label>
+                    <input type="tel" id="cliTelefono" placeholder="1122334455">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="cliEmail" placeholder="cliente@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Dirección</label>
+                    <input type="text" id="cliDireccion" placeholder="Calle 123">
+                </div>
+                <button type="submit" class="btn btn-success">Agregar Cliente</button>
+            </form>
+        </section>
+
+        <!-- Minutas -->
+        <section id="minutas" class="section">
+            <h2>📋 Minutas</h2>
+            <div class="list-container" id="minutasList">
+                <p class="empty-message">Cargando minutas...</p>
+            </div>
+            
+            <h3 style="margin-top: 20px; margin-bottom: 15px;">➕ Crear Minuta</h3>
+            <form onsubmit="crearMinuta(event)">
+                <div class="form-group">
+                    <label>Vehículo</label>
+                    <select id="minVehiculo" required>
+                        <option value="">Seleccionar vehículo...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <select id="minCliente" required>
+                        <option value="">Seleccionar cliente...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Precio Final</label>
+                    <input type="number" id="minPrecio" required placeholder="25000000">
+                </div>
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="minEstado" required>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="aprobada">Aprobada</option>
+                        <option value="cancelada">Cancelada</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <textarea id="minObservaciones" rows="3" placeholder="Notas adicionales..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-success">Crear Minuta</button>
+            </form>
+        </section>
+
+        <!-- Exportar -->
+        <section id="exportar" class="section">
+            <h2>📊 Exportar Datos</h2>
+            <div class="data-export">
+                <h4>📥 Exportar a JSON</h4>
+                <p>Descarga todos los datos en formato JSON para respaldo.</p>
+                <button class="btn btn-primary" onclick="exportarJSON()">Exportar JSON</button>
+            </div>
+            <div class="data-export">
+                <h4>📊 Exportar a Excel</h4>
+                <p>Genera archivo Excel con todos los datos.</p>
+                <button class="btn btn-success" onclick="exportarExcel()">Exportar Excel</button>
+            </div>
+            <div class="data-export">
+                <h4>🔄 Sincronizar con Servidor</h4>
+                <p>Sube los datos al servidor cuando tengas conexión.</p>
+                <button class="btn btn-secondary" onclick="sincronizar()">Sincronizar</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Base de datos local
+        class LocalDB {
+            constructor() {
+                this.init();
+            }
+
+            init() {
+                this.vehiculos = JSON.parse(localStorage.getItem('vehiculos') || '[]');
+                this.clientes = JSON.parse(localStorage.getItem('clientes') || '[]');
+                this.minutas = JSON.parse(localStorage.getItem('minutas') || '[]');
+            }
+
+            saveVehiculo(vehiculo) {
+                vehiculo.id = Date.now();
+                vehiculo.estado = 'disponible';
+                vehiculo.created_at = new Date().toISOString();
+                this.vehiculos.push(vehiculo);
+                localStorage.setItem('vehiculos', JSON.stringify(this.vehiculos));
+                return vehiculo;
+            }
+
+            saveCliente(cliente) {
+                cliente.id = Date.now();
+                cliente.created_at = new Date().toISOString();
+                this.clientes.push(cliente);
+                localStorage.setItem('clientes', JSON.stringify(this.clientes));
+                return cliente;
+            }
+
+            saveMinuta(minuta) {
+                minuta.id = Date.now();
+                minuta.created_at = new Date().toISOString();
+                this.minutas.push(minuta);
+                localStorage.setItem('minutas', JSON.stringify(this.minutas));
+                return minuta;
+            }
+
+            getVehiculos() {
+                return this.vehiculos;
+            }
+
+            getClientes() {
+                return this.clientes;
+            }
+
+            getMinutas() {
+                return this.minutas;
+            }
+
+            exportAll() {
+                return {
+                    vehiculos: this.vehiculos,
+                    clientes: this.clientes,
+                    minutas: this.minutas,
+                    export_date: new Date().toISOString()
+                };
+            }
+        }
+
+        const db = new LocalDB();
+
+        // Funciones de navegación
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            switch(sectionId) {
+                case 'dashboard': updateDashboard(); break;
+                case 'vehiculos': cargarVehiculos(); break;
+                case 'clientes': cargarClientes(); break;
+                case 'minutas': cargarMinutas(); break;
+            }
+        }
+
+        function updateDashboard() {
+            document.getElementById('totalVehiculos').textContent = db.getVehiculos().length;
+            document.getElementById('totalClientes').textContent = db.getClientes().length;
+            document.getElementById('totalMinutas').textContent = db.getMinutas().length;
+            document.getElementById('totalDisponibles').textContent = 
+                db.getVehiculos().filter(v => v.estado === 'disponible').length;
+        }
+
+        function cargarVehiculos() {
+            const vehiculos = db.getVehiculos();
+            const container = document.getElementById('vehiculosList');
+            
+            if (vehiculos.length === 0) {
+                container.innerHTML = '<p class="empty-message">No hay vehículos registrados</p>';
+                return;
+            }
+
+            container.innerHTML = vehiculos.map(v => `
+                <div class="card">
+                    <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
+                    <p><strong>Año:</strong> ${v.anio}</p>
+                    <p><strong>Precio:</strong> $${Number(v.precio).toLocaleString()}</p>
+                    <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                    <p><strong>Dominio:</strong> ${v.dominio || 'N/A'}</p>
+                </div>
+            `).join('');
+        }
+
+        function cargarClientes() {
+            const clientes = db.getClientes();
+            const container = document.getElementById('clientesList');
+            
+            if (clientes.length === 0) {
+                container.innerHTML = '<p class="empty-message">No hay clientes registrados</p>';
+                return;
+            }
+
+            container.innerHTML = clientes.map(c => `
+                <div class="card">
+                    <h3>${c.nombre} ${c.apellido}</h3>
+                    <p><strong>DNI:</strong> ${c.dni}</p>
+                    <p><strong>Teléfono:</strong> ${c.telefono || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${c.email || 'N/A'}</p>
+                </div>
+            `).join('');
+        }
+
+        function cargarMinutas() {
+            const minutas = db.getMinutas();
+            const container = document.getElementById('minutasList');
+            
+            if (minutas.length === 0) {
+                container.innerHTML = '<p class="empty-message">No hay minutas registradas</p>';
+                return;
+            }
+
+            container.innerHTML = minutas.map(m => `
+                <div class="card">
+                    <h3>Minuta #${m.id}</h3>
+                    <p><strong>Vehículo:</strong> ${m.vehiculo_marca} ${m.vehiculo_modelo}</p>
+                    <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
+                    <p><strong>Precio:</strong> $${Number(m.precio_final).toLocaleString()}</p>
+                    <p><strong>Estado:</strong> <span class="estado-${m.estado}">${m.estado}</span></p>
+                </div>
+            `).join('');
+        }
+
+        function actualizarSelects() {
+            const vehiculos = db.getVehiculos();
+            const clientes = db.getClientes();
+            
+            const vehSelect = document.getElementById('minVehiculo');
+            const cliSelect = document.getElementById('minCliente');
+            
+            vehSelect.innerHTML = '<option value="">Seleccionar vehículo...</option>' +
+                vehiculos.map(v => `<option value="${v.id}">${v.marca} ${v.modelo} ${v.anio}</option>`).join('');
+            
+            cliSelect.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+                clientes.map(c => `<option value="${c.id}">${c.nombre} ${c.apellido}</option>`).join('');
+        }
+
+        // Form handlers
+        function agregarVehiculo(event) {
+            event.preventDefault();
+            
+            const vehiculo = {
+                tipo: document.getElementById('vehTipo').value,
+                marca: document.getElementById('vehMarca').value,
+                modelo: document.getElementById('vehModelo').value,
+                version: document.getElementById('vehVersion').value,
+                anio: document.getElementById('vehAnio').value,
+                condicion: document.getElementById('vehCondicion').value,
+                precio: document.getElementById('vehPrecio').value,
+                dominio: document.getElementById('vehDominio').value
+            };
+            
+            db.saveVehiculo(vehiculo);
+            alert('✅ Vehículo agregado correctamente');
+            event.target.reset();
+            cargarVehiculos();
+            updateDashboard();
+            actualizarSelects();
+        }
+
+        function agregarCliente(event) {
+            event.preventDefault();
+            
+            const cliente = {
+                nombre: document.getElementById('cliNombre').value,
+                apellido: document.getElementById('cliApellido').value,
+                dni: document.getElementById('cliDni').value,
+                telefono: document.getElementById('cliTelefono').value,
+                email: document.getElementById('cliEmail').value,
+                direccion: document.getElementById('cliDireccion').value
+            };
+            
+            db.saveCliente(cliente);
+            alert('✅ Cliente agregado correctamente');
+            event.target.reset();
+            cargarClientes();
+            updateDashboard();
+            actualizarSelects();
+        }
+
+        function crearMinuta(event) {
+            event.preventDefault();
+            
+            const vehiculoId = document.getElementById('minVehiculo').value;
+            const clienteId = document.getElementById('minCliente').value;
+            
+            const vehiculo = db.getVehiculos().find(v => v.id == vehiculoId);
+            const cliente = db.getClientes().find(c => c.id == clienteId);
+            
+            if (!vehiculo || !cliente) {
+                alert('❌ Debes seleccionar vehículo y cliente');
+                return;
+            }
+            
+            const minuta = {
+                vehiculo_id: vehiculoId,
+                vehiculo_marca: vehiculo.marca,
+                vehiculo_modelo: vehiculo.modelo,
+                cliente_id: clienteId,
+                cliente_nombre: cliente.nombre,
+                cliente_apellido: cliente.apellido,
+                precio_final: document.getElementById('minPrecio').value,
+                estado: document.getElementById('minEstado').value,
+                observaciones: document.getElementById('minObservaciones').value
+            };
+            
+            db.saveMinuta(minuta);
+            alert('✅ Minuta creada correctamente');
+            event.target.reset();
+            cargarMinutas();
+            updateDashboard();
+        }
+
+        function exportarJSON() {
+            const datos = db.exportAll();
+            const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `concesionaria_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('✅ Archivo JSON descargado');
+        }
+
+        function exportarExcel() {
+            const datos = db.exportAll();
+            
+            // Crear CSV simple para Excel
+            let csv = 'VEHÍCULOS\n';
+            csv += 'Marca,Modelo,Año,Precio,Estado\n';
+            datos.vehiculos.forEach(v => {
+                csv += `${v.marca},${v.modelo},${v.anio},${v.precio},${v.estado}\n`;
+            });
+            
+            csv += '\nCLIENTES\n';
+            csv += 'Nombre,Apellido,DNI,Teléfono,Email\n';
+            datos.clientes.forEach(c => {
+                csv += `${c.nombre},${c.apellido},${c.dni},${c.telefono},${c.email}\n`;
+            });
+            
+            csv += '\nMINUTAS\n';
+            csv += 'Vehículo,Cliente,Precio,Estado\n';
+            datos.minutas.forEach(m => {
+                csv += `${m.vehiculo_marca} ${m.vehiculo_modelo},${m.cliente_nombre} ${m.cliente_apellido},${m.precio_final},${m.estado}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `concesionaria_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('✅ Archivo Excel (CSV) descargado');
+        }
+
+        function sincronizar() {
+            alert('🔄 Función de sincronización disponible cuando tengas conexión al servidor.\n\nLos datos locales se subirán automáticamente.');
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDashboard();
+            actualizarSelects();
+        });
+    </script>
+</body>
+</html>

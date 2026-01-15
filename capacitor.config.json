@@ -1,13 +1,22 @@
 {
   "appId": "com.concesionaria.app",
   "appName": "Concesionaria Pro",
-  "webDir": "src",
+  "webDir": "public",
   "server": {
     "androidScheme": "https",
     "cleartext": true,
-    "allowNavigation": ["*"]
+    "allowNavigation": [
+      "*"
+    ]
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true
+    }
   }
 }

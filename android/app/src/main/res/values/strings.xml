@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Concesionaria Pro</string>
+    <string name="title_activity_main">Concesionaria Pro</string>
+    <string name="package_name">com.concesionaria.app</string>
+    <string name="custom_url_scheme">com.concesionaria.app</string>
+</resources>
