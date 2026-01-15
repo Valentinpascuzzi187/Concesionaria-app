@@ -449,6 +449,21 @@
         <!-- Usuarios (Premium) -->
         <section id="usuarios" class="section">
             <h2>👤 Control de Usuarios</h2>
+            <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+                <button class="btn btn-primary" onclick="cargarAlertasRecientes()">🔔 Alertas recientes</button>
+                <button class="btn btn-secondary" onclick="cargarNotificaciones()">📨 Notificaciones</button>
+            </div>
+
+            <div id="alertasBox" style="display:none; margin-bottom:12px;">
+                <h4>🔔 Alertas Premium</h4>
+                <div class="list-container" id="alertasList"></div>
+            </div>
+
+            <div id="notificacionesBox" style="display:none; margin-bottom:12px;">
+                <h4>📨 Notificaciones</h4>
+                <div class="list-container" id="notificacionesList"></div>
+            </div>
+
             <div class="list-container" id="usuariosList">
                 <p class="empty-message">Cargando usuarios...</p>
             </div>
@@ -780,6 +795,10 @@
                                 `<button class="btn btn-success" style="margin-top:10px" onclick="reactivarUsuario(${u.id})">Reactivar</button>`
                             }
                         ` : ''}
+                        <div style="margin-top:10px; display:flex; gap:8px;">
+                            <button class="btn btn-secondary" onclick="verSesiones(${u.id})">🕒 Ver Sesiones</button>
+                            <button class="btn btn-secondary" onclick="verNavegacion(${u.id})">📍 Ver Navegación</button>
+                        </div>
                     </div>
                 `).join('');
             } catch (e) {
@@ -803,6 +822,89 @@
                 `).join('') || '<tr><td colspan="3">Sin registros</td></tr>';
             } catch (e) {
                 document.getElementById('auditoriaBody').innerHTML = '<tr><td colspan="3">Error</td></tr>';
+            }
+        }
+
+        // Nuevas funciones: alertas y control de usuario
+        async function cargarAlertasRecientes() {
+            if (!currentUser?.es_premium) {
+                alert('⚠️ Solo administradores premium pueden ver alertas');
+                return;
+            }
+            try {
+                const alertas = await apiCall('/api/alertas-premium');
+                document.getElementById('alertasBox').style.display = 'block';
+                const container = document.getElementById('alertasList');
+                container.innerHTML = alertas.length ? alertas.map(a => `
+                    <div class="card">
+                        <h3>${a.titulo}</h3>
+                        <p>${a.mensaje}</p>
+                        <p style="font-size:0.8em; color:#666">${new Date(a.fecha_alerta).toLocaleString()}</p>
+                    </div>
+                `).join('') : '<p class="empty-message">No hay alertas</p>';
+            } catch (e) {
+                alert('❌ Error al cargar alertas: ' + e.message);
+            }
+        }
+
+        async function cargarNotificaciones() {
+            if (!currentUser?.es_premium) {
+                alert('⚠️ Solo administradores premium pueden ver notificaciones');
+                return;
+            }
+            try {
+                const nots = await apiCall('/api/notificaciones');
+                document.getElementById('notificacionesBox').style.display = 'block';
+                const container = document.getElementById('notificacionesList');
+                container.innerHTML = nots.length ? nots.map(n => `
+                    <div class="card">
+                        <h3>${n.titulo}</h3>
+                        <p>${n.mensaje}</p>
+                        <p style="font-size:0.8em; color:#666">${new Date(n.created_at).toLocaleString()}</p>
+                    </div>
+                `).join('') : '<p class="empty-message">No hay notificaciones</p>';
+            } catch (e) {
+                alert('❌ Error al cargar notificaciones: ' + e.message);
+            }
+        }
+
+        async function verSesiones(usuarioId) {
+            try {
+                const sesiones = await apiCall(`/api/tracking/sesiones/${usuarioId}`);
+                const html = sesiones.length ? sesiones.map(s => `
+                    <div class="card">
+                        <h3>Sesión #${s.id}</h3>
+                        <p><strong>Login:</strong> ${new Date(s.fecha_login).toLocaleString()}</p>
+                        <p><strong>Logout:</strong> ${s.fecha_logout ? new Date(s.fecha_logout).toLocaleString() : 'Activa'}</p>
+                        <p><strong>IP:</strong> ${s.ip_address || 'N/A'}</p>
+                        <p><strong>Duración (s):</strong> ${s.duracion_segundos || '-'}</p>
+                    </div>
+                `).join('') : '<p class="empty-message">No hay sesiones</p>';
+
+                // Mostrar en un modal ligero (reutilizamos alertasBox)
+                document.getElementById('alertasBox').style.display = 'block';
+                document.getElementById('alertasList').innerHTML = `<h4>🕒 Sesiones del usuario ${usuarioId}</h4>` + html;
+            } catch (e) {
+                alert('❌ Error al obtener sesiones: ' + e.message);
+            }
+        }
+
+        async function verNavegacion(usuarioId) {
+            try {
+                const nav = await apiCall(`/api/tracking/navegacion/${usuarioId}`);
+                const html = nav.length ? nav.map(n => `
+                    <div class="card">
+                        <h3>${n.seccion_visitada}</h3>
+                        <p><strong>Acción:</strong> ${n.accion}</p>
+                        <p><strong>Detalles:</strong> ${n.detalles || '-'}</p>
+                        <p style="font-size:0.8em; color:#666">${new Date(n.fecha_visita).toLocaleString()}</p>
+                    </div>
+                `).join('') : '<p class="empty-message">No hay navegación registrada</p>';
+
+                document.getElementById('alertasBox').style.display = 'block';
+                document.getElementById('alertasList').innerHTML = `<h4>📍 Navegación del usuario ${usuarioId}</h4>` + html;
+            } catch (e) {
+                alert('❌ Error al obtener navegación: ' + e.message);
             }
         }
 
