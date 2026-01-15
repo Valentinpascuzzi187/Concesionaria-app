@@ -558,8 +558,9 @@
             const currentHost = window.location.hostname;
             const currentProtocol = window.location.protocol;
             
-            // Si estamos en el mismo servidor (producción), usar la misma URL
-            if (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && !currentHost.startsWith('192.168')) {
+            // Si estamos en el mismo servidor (producción) y NO estamos en un WebView/file://, usar la misma URL
+            // En WebView (protocol file:) window.location.hostname suele estar vacío; en ese caso forzamos el serverIP
+            if (currentProtocol !== 'file:' && currentHost !== '' && currentHost !== 'localhost' && currentHost !== '127.0.0.1' && !currentHost.startsWith('192.168')) {
                 return `${currentProtocol}//${currentHost}`;
             }
             
