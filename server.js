@@ -610,6 +610,8 @@ async function ensureColumns() {
   // tracking_sesiones
   if (!(await colExists('tracking_sesiones', 'dispositivo_id'))) await addColumn('tracking_sesiones', 'dispositivo_id', 'VARCHAR(255)');
   if (!(await colExists('tracking_sesiones', 'dispositivo_info'))) await addColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
+  // vehiculos: imagen
+  if (!(await colExists('vehiculos', 'imagen'))) await addColumn('vehiculos', 'imagen', "VARCHAR(255) NULL");
 }
 
 /* =========================
@@ -643,6 +645,28 @@ async function crearUsuarioPremium() {
     }
   } catch (err) {
     console.error('❌ Error verificando usuario premium:', err);
+  }
+}
+
+// Helpers para manejo de imágenes (base64 => archivo en public/uploads)
+function ensureDirExists(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+async function saveBase64Image(base64Data, destPath) {
+  try {
+    const matches = base64Data.match(/^data:(image\/(png|jpg|jpeg));base64,(.+)$/);
+    let data = base64Data;
+    if (matches) {
+      data = matches[3];
+    }
+    const buffer = Buffer.from(data, 'base64');
+    ensureDirExists(path.dirname(destPath));
+    fs.writeFileSync(destPath, buffer);
+    return true;
+  } catch (err) {
+    console.error('Error saving image:', err);
+    return false;
   }
 }
 
@@ -1213,7 +1237,7 @@ app.get('/api/vehiculos', async (req, res) => {
 
 app.post('/api/vehiculos', async (req, res) => {
   try {
-    const { tipo, marca, modelo, version, anio, condicion, precio, dominio } = req.body;
+    const { tipo, marca, modelo, version, anio, condicion, precio, dominio, imagen_base64 } = req.body;
 
     if (!tipo || !marca || !modelo || !anio || !condicion || !precio) {
       return res.status(400).json({ message: 'Todos los campos obligatorios deben ser completados' });
@@ -1230,6 +1254,24 @@ app.post('/api/vehiculos', async (req, res) => {
 
     const vehiculoId = result.insertId;
     const vehiculoData = { tipo, marca, modelo, version, anio, condicion, precio, dominio };
+
+    // Si recibimos imagen en base64, guardarla y actualizar registro
+    if (imagen_base64) {
+      try {
+        const extMatch = imagen_base64.match(/^data:image\/(png|jpg|jpeg);base64,/);
+        const ext = extMatch ? extMatch[1] : 'jpg';
+        const filename = `vehiculo_${vehiculoId}.${ext}`;
+        const dest = path.join(__dirname, 'public', 'uploads', 'vehiculos', filename);
+        const saved = await saveBase64Image(imagen_base64, dest);
+        if (saved) {
+          const publicPath = `/uploads/vehiculos/${filename}`;
+          await q('UPDATE vehiculos SET imagen = ? WHERE id = ?', [publicPath, vehiculoId]);
+          vehiculoData.imagen = publicPath;
+        }
+      } catch (err) {
+        console.error('Error procesando imagen:', err);
+      }
+    }
 
     await registrarAuditoria(1, 'CREACION_VEHICULO', 'vehiculos', vehiculoId, null, vehiculoData);
 
@@ -1261,6 +1303,35 @@ app.delete('/api/vehiculos/:id', async (req, res) => {
     res.json({ message: 'Vehículo eliminado correctamente' });
   } catch (error) {
     res.status(500).json({ message: 'Error al eliminar vehículo' });
+  }
+});
+
+// Endpoint para subir/actualizar imagen de vehiculo (base64 payload)
+app.post('/api/vehiculos/:id/imagen', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imagen_base64 } = req.body;
+    if (!imagen_base64) return res.status(400).json({ message: 'No image provided' });
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    const extMatch = imagen_base64.match(/^data:image\/(png|jpg|jpeg);base64,/);
+    const ext = extMatch ? extMatch[1] : 'jpg';
+    const filename = `vehiculo_${id}.${ext}`;
+    const dest = path.join(__dirname, 'public', 'uploads', 'vehiculos', filename);
+    const saved = await saveBase64Image(imagen_base64, dest);
+    if (!saved) return res.status(500).json({ message: 'Error guardando imagen' });
+
+    const publicPath = `/uploads/vehiculos/${filename}`;
+    await q('UPDATE vehiculos SET imagen = ? WHERE id = ?', [publicPath, id]);
+
+    await registrarAuditoria(1, 'ACTUALIZACION_IMAGEN_VEHICULO', 'vehiculos', id, null, { imagen: publicPath });
+
+    res.json({ message: 'Imagen actualizada', imagen: publicPath });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al subir imagen' });
   }
 });
 
@@ -1455,6 +1526,46 @@ app.post('/api/minutas', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// Permitir edición de minutas por administradores o premium
+app.put('/api/minutas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id, precio_final, observaciones, estado } = req.body;
+
+    const minuta = await qFirst('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id]);
+    if (!minuta) return res.status(404).json({ message: 'Minuta no encontrada' });
+
+    // Verificar permisos (usuario_id debe existir y ser administrador o premium)
+    if (!usuario_id) return res.status(403).json({ message: 'Falta usuario_id para verificar permisos' });
+    const user = await qFirst('SELECT id, rol, es_premium FROM usuarios WHERE id = ?', [usuario_id]);
+    if (!user) return res.status(403).json({ message: 'Usuario no válido' });
+
+    if (!(user.rol === 'administrador' || user.es_premium === 1)) {
+      return res.status(403).json({ message: 'No tienes permisos para editar la minuta' });
+    }
+
+    const updates = [];
+    const params = [];
+    if (typeof precio_final !== 'undefined') { updates.push('precio_final = ?'); params.push(precio_final); }
+    if (typeof observaciones !== 'undefined') { updates.push('observaciones = ?'); params.push(observaciones); }
+    if (typeof estado !== 'undefined') { updates.push('estado = ?'); params.push(estado); }
+
+    if (updates.length === 0) return res.status(400).json({ message: 'Nada para actualizar' });
+
+    params.push(id);
+    await q(`UPDATE minutas SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, params);
+
+    await registrarAuditoria(usuario_id, 'EDICION_MINUTA', 'minutas', id, minuta, { precio_final, observaciones, estado });
+    await registrarHistorial('minutas', id, 'edicion', JSON.stringify(minuta), JSON.stringify({ precio_final, observaciones, estado }), usuario_id);
+
+    const updated = await qFirst('SELECT * FROM minutas WHERE id = ?', [id]);
+    res.json({ message: 'Minuta actualizada', minuta: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error al actualizar minuta' });
   }
 });
 
