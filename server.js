@@ -597,6 +597,36 @@ async function initTables() {
     CONSTRAINT fk_minutas_det_creado_por FOREIGN KEY (creado_por) REFERENCES usuarios(id)
       ON DELETE SET NULL ON UPDATE CASCADE
   ) ENGINE=InnoDB`);
+
+  await q(`CREATE TABLE IF NOT EXISTS seguimiento_tramites (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    vehiculo_id INT NOT NULL,
+    minuta_id INT NULL,
+    estado ENUM('en_progreso','estancado','finalizado') DEFAULT 'en_progreso',
+    porcentaje_avance INT DEFAULT 0,
+    notas TEXT NULL,
+    usuario_id INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_seg_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_seg_minuta FOREIGN KEY (minuta_id) REFERENCES minutas(id)
+      ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_seg_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
+
+  await q(`CREATE TABLE IF NOT EXISTS fotografia_vehiculo (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    vehiculo_id INT NOT NULL,
+    url_imagen VARCHAR(500) NOT NULL,
+    tipo ENUM('exterior','interior','detalles','documentos') DEFAULT 'exterior',
+    nombre VARCHAR(255) NULL,
+    ordenamiento INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_foto_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id)
+      ON DELETE CASCADE ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
 }
 
 // Asegurar columnas (equivalente ensureColumn PRAGMA en sqlite)
@@ -628,6 +658,11 @@ async function ensureColumns() {
   if (!(await colExists('tracking_sesiones', 'dispositivo_info'))) await addColumn('tracking_sesiones', 'dispositivo_info', 'TEXT');
   // vehiculos: imagen
   if (!(await colExists('vehiculos', 'imagen'))) await addColumn('vehiculos', 'imagen', "VARCHAR(255) NULL");
+  if (!(await colExists('vehiculos', 'estado_detallado'))) await addColumn('vehiculos', 'estado_detallado', "ENUM('disponible','proceso_venta','pos_venta','vendido','estancado') DEFAULT 'disponible'");
+  if (!(await colExists('vehiculos', 'minuta_id'))) await addColumn('vehiculos', 'minuta_id', "INT NULL");
+  if (!(await colExists('vehiculos', 'progreso_tramite'))) await addColumn('vehiculos', 'progreso_tramite', "INT DEFAULT 0 COMMENT 'Porcentaje 0-100'");
+  if (!(await colExists('vehiculos', 'dias_sin_movimiento'))) await addColumn('vehiculos', 'dias_sin_movimiento', "INT DEFAULT 0");
+  if (!(await colExists('vehiculos', 'ultimo_movimiento'))) await addColumn('vehiculos', 'ultimo_movimiento', "DATETIME NULL");
   // minutas: campos de financiamiento / trade-in / reserva
   if (!(await colExists('minutas', 'financiamiento'))) await addColumn('minutas', 'financiamiento', 'VARCHAR(255) NULL');
   if (!(await colExists('minutas', 'financiamiento_anticipo'))) await addColumn('minutas', 'financiamiento_anticipo', 'DECIMAL(12,2) NULL');
@@ -636,6 +671,11 @@ async function ensureColumns() {
   if (!(await colExists('minutas', 'tradein_proporciona'))) await addColumn('minutas', 'tradein_proporciona', 'TINYINT(1) DEFAULT 0');
   if (!(await colExists('minutas', 'tradein_datos'))) await addColumn('minutas', 'tradein_datos', 'TEXT NULL');
   if (!(await colExists('minutas', 'reserva_monto'))) await addColumn('minutas', 'reserva_monto', 'DECIMAL(12,2) DEFAULT 0');
+  if (!(await colExists('minutas', 'pagado'))) await addColumn('minutas', 'pagado', 'TINYINT(1) DEFAULT 0');
+  if (!(await colExists('minutas', 'fecha_finalizacion'))) await addColumn('minutas', 'fecha_finalizacion', 'DATETIME NULL');
+  if (!(await colExists('minutas', 'firma_comprador'))) await addColumn('minutas', 'firma_comprador', 'LONGBLOB NULL');
+  if (!(await colExists('minutas', 'firma_vendedor'))) await addColumn('minutas', 'firma_vendedor', 'LONGBLOB NULL');
+  if (!(await colExists('minutas', 'aprobada_admin'))) await addColumn('minutas', 'aprobada_admin', 'TINYINT(1) DEFAULT 0');
   // usuarios: super_admin flag
   if (!(await colExists('usuarios', 'super_admin'))) await addColumn('usuarios', 'super_admin', 'TINYINT(1) DEFAULT 0');
 }
@@ -2126,6 +2166,142 @@ app.delete('/api/usuarios/:id', async (req, res) => {
     res.json({ message: 'Usuario eliminado correctamente' });
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+/* =========================
+   SEGUIMIENTO DE TRÁMITES
+========================= */
+
+// Obtener seguimiento de trámites de un vehículo
+app.get('/api/vehiculos/:id/seguimiento', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const registros = await q(
+      `SELECT st.*, u.nombre as nombre_usuario, m.id as minuta_id
+       FROM seguimiento_tramites st
+       LEFT JOIN usuarios u ON st.usuario_id = u.id
+       LEFT JOIN minutas m ON st.minuta_id = m.id
+       WHERE st.vehiculo_id = ? AND st.eliminado = 0
+       ORDER BY st.created_at DESC`,
+      [id]
+    );
+    res.json(registros);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener seguimiento' });
+  }
+});
+
+// Crear o actualizar seguimiento de trámite
+app.post('/api/vehiculos/:id/seguimiento', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { minuta_id, estado, porcentaje_avance, notas, usuario_id } = req.body;
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    // Buscar si existe seguimiento activo
+    const existente = await qFirst(
+      `SELECT * FROM seguimiento_tramites WHERE vehiculo_id = ? AND minuta_id = ? AND eliminado = 0 LIMIT 1`,
+      [id, minuta_id]
+    );
+
+    if (existente) {
+      await q(
+        `UPDATE seguimiento_tramites SET estado = ?, porcentaje_avance = ?, notas = ?, usuario_id = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [estado, porcentaje_avance || 0, notas || null, usuario_id || null, existente.id]
+      );
+      return res.json({ message: 'Seguimiento actualizado', id: existente.id });
+    }
+
+    const [result] = await q(
+      `INSERT INTO seguimiento_tramites (vehiculo_id, minuta_id, estado, porcentaje_avance, notas, usuario_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, minuta_id || null, estado || 'en_progreso', porcentaje_avance || 0, notas || null, usuario_id || null]
+    );
+
+    res.status(201).json({ message: 'Seguimiento creado', id: result.insertId });
+  } catch (error) {
+    console.error('Error al crear seguimiento:', error);
+    res.status(500).json({ message: 'Error al crear seguimiento' });
+  }
+});
+
+/* =========================
+   GALERÍA DE FOTOS
+========================= */
+
+// Obtener fotos de un vehículo
+app.get('/api/vehiculos/:id/fotos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fotos = await q(
+      `SELECT * FROM fotografia_vehiculo
+       WHERE vehiculo_id = ?
+       ORDER BY ordenamiento ASC, created_at ASC`,
+      [id]
+    );
+    res.json(fotos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener fotos' });
+  }
+});
+
+// Agregar foto a un vehículo
+app.post('/api/vehiculos/:id/fotos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { url_imagen, tipo, nombre } = req.body;
+
+    if (!url_imagen) {
+      return res.status(400).json({ message: 'URL de imagen es requerida' });
+    }
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    const [result] = await q(
+      `INSERT INTO fotografia_vehiculo (vehiculo_id, url_imagen, tipo, nombre, ordenamiento)
+       VALUES (?, ?, ?, ?, COALESCE((SELECT MAX(ordenamiento) FROM fotografia_vehiculo WHERE vehiculo_id = ?), 0) + 1)`,
+      [id, url_imagen, tipo || 'exterior', nombre || null, id]
+    );
+
+    res.status(201).json({ message: 'Foto agregada', id: result.insertId });
+  } catch (error) {
+    console.error('Error al agregar foto:', error);
+    res.status(500).json({ message: 'Error al agregar foto' });
+  }
+});
+
+// Eliminar foto
+app.delete('/api/fotos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const foto = await qFirst('SELECT * FROM fotografia_vehiculo WHERE id = ?', [id]);
+    if (!foto) return res.status(404).json({ message: 'Foto no encontrada' });
+
+    await q('DELETE FROM fotografia_vehiculo WHERE id = ?', [id]);
+    res.json({ message: 'Foto eliminada' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar foto' });
+  }
+});
+
+// Reordenar fotos
+app.put('/api/fotos/:id/reordenar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ordenamiento } = req.body;
+
+    const foto = await qFirst('SELECT * FROM fotografia_vehiculo WHERE id = ?', [id]);
+    if (!foto) return res.status(404).json({ message: 'Foto no encontrada' });
+
+    await q('UPDATE fotografia_vehiculo SET ordenamiento = ? WHERE id = ?', [ordenamiento, id]);
+    res.json({ message: 'Orden actualizado' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar orden' });
   }
 });
 

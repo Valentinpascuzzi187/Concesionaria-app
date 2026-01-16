@@ -1,1 +1,1 @@
-v2.5.2 - Icono corregido - Logo prominente sin fondo generico - Thu Jan 16 2026
+v2.6.0 - Sistema de estados de vehículos, seguimiento de trámites y galería de fotos - Thu Jan 16 2026

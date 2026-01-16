@@ -327,31 +327,142 @@ textarea {
 .estado-disponible {
   color: #28a745;
   font-weight: bold;
+  background: #d4edda;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .estado-reservado {
-  color: #ffc107;
+  color: #856404;
   font-weight: bold;
+  background: #fff3cd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .estado-vendido {
-  color: #dc3545;
+  color: #721c24;
   font-weight: bold;
+  background: #f8d7da;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .estado-iniciada {
-  color: #17a2b8;
+  color: #0c5460;
   font-weight: bold;
+  background: #d1ecf1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .estado-en-proceso {
-  color: #fd7e14;
+  color: #856404;
   font-weight: bold;
+  background: #fff3cd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .estado-cerrada {
-  color: #28a745;
+  color: #155724;
   font-weight: bold;
+  background: #d4edda;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.estado-proceso_venta {
+  color: #004085;
+  font-weight: bold;
+  background: #cfe2ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.estado-pos_venta {
+  color: #856404;
+  font-weight: bold;
+  background: #fff3cd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.estado-estancado {
+  color: #721c24;
+  font-weight: bold;
+  background: #f8d7da;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* Badge de seguimiento */
+.seguimiento-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.seguimiento-en_progreso {
+  background: #cfe2ff;
+  color: #004085;
+}
+
+.seguimiento-estancado {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.seguimiento-finalizado {
+  background: #d4edda;
+  color: #155724;
+}
+
+/* Galería de fotos */
+.foto-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.foto-thumbnail {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 2px solid #ddd;
+  transition: all 0.3s ease;
+}
+
+.foto-thumbnail:hover {
+  border-color: #667eea;
+  transform: scale(1.05);
+}
+
+.foto-upload {
+  border: 2px dashed #667eea;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.foto-upload:hover {
+  background: #f0f0f0;
 }
 
 /* Formularios dinámicos */

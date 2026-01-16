@@ -59,7 +59,15 @@ const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
       deleteMinuta: (id) => call(`/api/minutas/${id}`, 'DELETE', { usuario_id: currentUser?.id }),
       getUsuariosTodos: () => call('/api/usuarios/todos'),
       suspenderUsuario: (id, motivo, mensaje, duracion, usuario_premium_id) => call(`/api/usuarios/${id}/suspender`, 'POST', { motivo, mensaje, duracion, usuario_premium_id }),
-      reactivarUsuario: (id, usuario_premium_id) => call(`/api/usuarios/${id}/reactivar`, 'POST', { usuario_premium_id })
+      reactivarUsuario: (id, usuario_premium_id) => call(`/api/usuarios/${id}/reactivar`, 'POST', { usuario_premium_id }),
+      // Métodos para seguimiento y galería
+      getSeguimientoVehiculo: (vehiculo_id) => call(`/api/vehiculos/${vehiculo_id}/seguimiento`),
+      getFotosVehiculo: (vehiculo_id) => call(`/api/vehiculos/${vehiculo_id}/fotos`),
+      agregarFoto: (vehiculo_id, datos) => call(`/api/vehiculos/${vehiculo_id}/fotos`, 'POST', datos),
+      crearSeguimiento: (vehiculo_id, datos) => call(`/api/vehiculos/${vehiculo_id}/seguimiento`, 'POST', datos),
+      actualizarSeguimiento: (id, datos) => call(`/api/seguimientos/${id}`, 'PUT', datos),
+      eliminarFoto: (id) => call(`/api/fotos/${id}`, 'DELETE', {}),
+      reordenarFoto: (id, ordenamiento) => call(`/api/fotos/${id}/reordenar`, 'PUT', { ordenamiento })
     };
 
     if (!window.api) window.api = apiFallback;
@@ -313,22 +321,57 @@ async function loadVehiculos() {
       return;
     }
 
-    listDiv.innerHTML = vehiculos.map(v => `
-      <div class="vehiculo-card">
-        <h4>${v.marca} ${v.modelo} ${v.version || ''} (${v.anio})</h4>
-        <p><strong>Tipo:</strong> ${v.tipo}</p>
-        <p><strong>Condición:</strong> ${v.condicion}</p>
-        <p><strong>Dominio:</strong> ${v.dominio || 'N/A'}</p>
-        <p><strong>Precio:</strong> $${v.precio.toLocaleString()}</p>
-        <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
-        ${currentUser && currentUser.es_premium ? `
-          <div style="margin-top: 15px;">
-            <button class="btn btn-danger btn-sm" onclick="eliminarVehiculo(${v.id})">🗑️ Eliminar</button>
-            <button class="btn btn-warning btn-sm" onclick="editarVehiculo(${v.id})">✏️ Editar</button>
-          </div>
-        ` : ''}
-      </div>
-    `).join('');
+    let html = '';
+    for (const v of vehiculos) {
+      // Obtener seguimiento de trámites
+      let seguimientoHtml = '';
+      try {
+        const seguimientos = await window.api.getSeguimientoVehiculo(v.id);
+        if (seguimientos && seguimientos.length > 0) {
+          const ultimo = seguimientos[0];
+          seguimientoHtml = `<span class="seguimiento-badge seguimiento-${ultimo.estado}">${ultimo.estado.toUpperCase()} - ${ultimo.porcentaje_avance}%</span>`;
+        }
+      } catch (e) {
+        console.log('No hay seguimiento para vehículo', v.id);
+      }
+
+      // Obtener fotos
+      let fotosHtml = '';
+      try {
+        const fotos = await window.api.getFotosVehiculo(v.id);
+        if (fotos && fotos.length > 0) {
+          fotosHtml = '<div class="foto-gallery">' +
+            fotos.slice(0, 4).map(f => `
+              <img src="${f.url_imagen}" alt="Foto" class="foto-thumbnail" onclick="verFotoGrande('${f.url_imagen}')">
+            `).join('') +
+            (fotos.length > 4 ? `<div style="background: #eee; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">+${fotos.length - 4}</div>` : '') +
+            '</div>';
+        }
+      } catch (e) {
+        console.log('No hay fotos para vehículo', v.id);
+      }
+
+      html += `
+        <div class="vehiculo-card">
+          <h4>${v.marca} ${v.modelo} ${v.version || ''} (${v.anio})</h4>
+          <p><strong>Tipo:</strong> ${v.tipo}</p>
+          <p><strong>Condición:</strong> ${v.condicion}</p>
+          <p><strong>Dominio:</strong> ${v.dominio || 'N/A'}</p>
+          <p><strong>Precio:</strong> $${v.precio.toLocaleString()}</p>
+          <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span> ${seguimientoHtml}</p>
+          ${fotosHtml}
+          ${currentUser && currentUser.es_premium ? `
+            <div style="margin-top: 15px;">
+              <button class="btn btn-info btn-sm" onclick="verGaleria(${v.id})">📷 Galería</button>
+              <button class="btn btn-info btn-sm" onclick="verSeguimiento(${v.id})">📈 Seguimiento</button>
+              <button class="btn btn-danger btn-sm" onclick="eliminarVehiculo(${v.id})">🗑️ Eliminar</button>
+              <button class="btn btn-warning btn-sm" onclick="editarVehiculo(${v.id})">✏️ Editar</button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+    listDiv.innerHTML = html;
   } catch (error) {
     console.error('Error cargando vehículos:', error);
   }
@@ -1190,3 +1233,228 @@ document.getElementById('minutaProfesionalFormElement')?.addEventListener('submi
     messageDiv.textContent = '❌ Error al crear minuta: ' + (error.message || 'Error desconocido');
   }
 });
+
+/* ========================= 
+   GALERÍA Y SEGUIMIENTO 
+========================= */
+
+// Ver galería de fotos de un vehículo
+function verGaleria(vehiculoId) {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  `;
+  
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white; border-radius: 10px; padding: 20px;
+    max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;
+  `;
+  
+  content.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2>Galería de Fotos</h2>
+      <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+    </div>
+    <div id="fotosGrid" style="text-align: center; padding: 20px;">
+      <p>Cargando...</p>
+    </div>
+    <div style="margin-top: 20px;">
+      <h3>Agregar Foto</h3>
+      <div class="foto-upload" onclick="document.getElementById('fotoInput${vehiculoId}').click()" style="cursor: pointer;">
+        <p>📷 Haz clic para seleccionar una foto</p>
+      </div>
+      <input type="file" id="fotoInput${vehiculoId}" accept="image/*" style="display: none;" onchange="subirFoto(${vehiculoId}, event)">
+      <select id="tipoFoto${vehiculoId}" style="width: 100%; margin-top: 10px;">
+        <option value="exterior">Exterior</option>
+        <option value="interior">Interior</option>
+        <option value="detalles">Detalles</option>
+        <option value="documentos">Documentos</option>
+      </select>
+    </div>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Cargar fotos
+  (async () => {
+    try {
+      const fotos = await window.api.getFotosVehiculo(vehiculoId);
+      const grid = document.getElementById('fotosGrid');
+      
+      if (!fotos || fotos.length === 0) {
+        grid.innerHTML = '<p style="color: #999;">No hay fotos cargadas</p>';
+        return;
+      }
+      
+      grid.innerHTML = fotos.map(f => `
+        <div style="margin-bottom: 15px; text-align: left;">
+          <img src="${f.url_imagen}" style="width: 100%; border-radius: 8px; margin-bottom: 10px;" alt="Foto">
+          <p><small>${f.tipo}</small></p>
+          <button onclick="eliminarFotoGaleria(${f.id})" class="btn btn-danger btn-sm">🗑️ Eliminar</button>
+        </div>
+      `).join('');
+    } catch (error) {
+      document.getElementById('fotosGrid').innerHTML = '<p style="color: red;">Error al cargar fotos</p>';
+    }
+  })();
+}
+
+// Ver seguimiento de trámite
+function verSeguimiento(vehiculoId) {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  `;
+  
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white; border-radius: 10px; padding: 20px;
+    max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;
+  `;
+  
+  content.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2>Seguimiento del Trámite</h2>
+      <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+    </div>
+    <div id="seguimientoContent" style="text-align: center; padding: 20px;">
+      <p>Cargando...</p>
+    </div>
+    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 20px;">
+      <h3>Actualizar Seguimiento</h3>
+      <div class="form-group">
+        <label>Estado:</label>
+        <select id="estadoSeguimiento" style="width: 100%;">
+          <option value="en_progreso">En Progreso</option>
+          <option value="estancado">Estancado</option>
+          <option value="finalizado">Finalizado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Porcentaje de Avance:</label>
+        <input type="range" id="porcentajeSeguimiento" min="0" max="100" value="0" style="width: 100%;" onchange="document.getElementById('porcentajeValue').textContent = this.value + '%'">
+        <span id="porcentajeValue">0%</span>
+      </div>
+      <div class="form-group">
+        <label>Notas:</label>
+        <textarea id="notasSeguimiento" style="width: 100%; height: 100px; border: 1px solid #ccc; padding: 8px; border-radius: 4px;"></textarea>
+      </div>
+      <button onclick="guardarSeguimiento(${vehiculoId})" class="btn btn-primary">💾 Guardar Seguimiento</button>
+    </div>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Cargar seguimientos
+  (async () => {
+    try {
+      const seguimientos = await window.api.getSeguimientoVehiculo(vehiculoId);
+      const contenedor = document.getElementById('seguimientoContent');
+      
+      if (!seguimientos || seguimientos.length === 0) {
+        contenedor.innerHTML = '<p style="color: #999;">No hay seguimiento registrado aún</p>';
+        return;
+      }
+      
+      contenedor.innerHTML = '<div style="text-align: left;">' +
+        seguimientos.map(s => `
+          <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+            <p><strong>Estado:</strong> <span class="seguimiento-${s.estado}">${s.estado}</span></p>
+            <p><strong>Avance:</strong> ${s.porcentaje_avance}%</p>
+            ${s.notas ? `<p><strong>Notas:</strong> ${s.notas}</p>` : ''}
+            ${s.nombre_usuario ? `<p><small>Por: ${s.nombre_usuario}</small></p>` : ''}
+            <p><small style="color: #999;">${new Date(s.created_at).toLocaleString()}</small></p>
+          </div>
+        `).join('') +
+        '</div>';
+      
+      // Cargar último estado
+      if (seguimientos.length > 0) {
+        document.getElementById('estadoSeguimiento').value = seguimientos[0].estado;
+        document.getElementById('porcentajeSeguimiento').value = seguimientos[0].porcentaje_avance;
+        document.getElementById('porcentajeValue').textContent = seguimientos[0].porcentaje_avance + '%';
+        document.getElementById('notasSeguimiento').value = seguimientos[0].notas || '';
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      document.getElementById('seguimientoContent').innerHTML = '<p style="color: red;">Error al cargar seguimiento</p>';
+    }
+  })();
+}
+
+// Guardar seguimiento
+async function guardarSeguimiento(vehiculoId) {
+  try {
+    const datos = {
+      estado: document.getElementById('estadoSeguimiento').value,
+      porcentaje_avance: parseInt(document.getElementById('porcentajeSeguimiento').value),
+      notas: document.getElementById('notasSeguimiento').value,
+      usuario_id: currentUser?.id
+    };
+    
+    await window.api.crearSeguimiento(vehiculoId, datos);
+    alert('✅ Seguimiento actualizado correctamente');
+    location.reload(); // Recargar para reflejar cambios
+  } catch (error) {
+    alert('❌ Error al guardar seguimiento: ' + error.message);
+  }
+}
+
+// Subir foto
+async function subirFoto(vehiculoId, event) {
+  const archivo = event.target.files[0];
+  if (!archivo) return;
+  
+  // Para demo, usar data URL
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const tipo = document.getElementById(`tipoFoto${vehiculoId}`).value;
+      await window.api.agregarFoto(vehiculoId, {
+        url_imagen: e.target.result,
+        tipo: tipo,
+        nombre: archivo.name
+      });
+      alert('✅ Foto agregada correctamente');
+      location.reload();
+    } catch (error) {
+      alert('❌ Error al subir foto: ' + error.message);
+    }
+  };
+  reader.readAsDataURL(archivo);
+}
+
+// Eliminar foto de galería
+async function eliminarFotoGaleria(fotoId) {
+  if (!confirm('¿Está seguro de que desea eliminar esta foto?')) return;
+  
+  try {
+    await window.api.eliminarFoto(fotoId);
+    alert('✅ Foto eliminada');
+    location.reload();
+  } catch (error) {
+    alert('❌ Error al eliminar foto: ' + error.message);
+  }
+}
+
+// Ver foto a tamaño completo
+function verFotoGrande(url) {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9); z-index: 1001;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  `;
+  modal.innerHTML = `<img src="${url}" style="max-width: 90%; max-height: 90%; border-radius: 8px;">`;
+  modal.onclick = () => modal.remove();
+  document.body.appendChild(modal);
+}
+
