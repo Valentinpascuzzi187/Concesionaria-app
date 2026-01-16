@@ -41,8 +41,8 @@ app.get('/src/style.css', (req, res) => res.sendFile(path.join(__dirname, 'src',
 // Ruta raíz actualizada
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
 
-// Versión actualizada - v2.5.1 - Logo y nombre De Grazia - 2026-01-16
-console.log('🚀 Concesionaria App v2.5.1 - De Grazia Automotores - FORCE UPDATE');
+// Versión actualizada - v2.5.2 - Icono corregido - 2026-01-16
+console.log('🚀 Concesionaria App v2.5.2 - Logo De Grazia prominente - FORCE UPDATE');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
