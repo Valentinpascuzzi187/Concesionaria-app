@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Concesionaria - Sistema de Gestión</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="navbar-brand" style="display:flex; align-items:center; gap:12px;">
+        <img id="brandLogo" class="brand-logo" src="/assets/logo.png" alt="De Grazia - Automotores" onerror="this.onerror=null;this.src='/assets/logo.svg'">
+        <h1>De Grazia - Automotores</h1>
+      </div>
+      <div class="navbar-menu">
+        <button class="nav-btn" onclick="showSection('login')">Login</button>
+        <button class="nav-btn" onclick="showSection('register')">Registro</button>
+        <button class="nav-btn" onclick="showSection('dashboard')" style="display:none;">📊 Dashboard</button>
+        <button class="nav-btn" onclick="showSection('stock')" style="display:none;">🚗 Stock</button>
+        <button class="nav-btn" onclick="showSection('clientes')" style="display:none;">👥 Clientes</button>
+        <button class="nav-btn" onclick="showSection('minutas')" style="display:none;">📋 Minutas</button>
+        <button class="nav-btn" onclick="showSection('pagos')" style="display:none;">💰 Pagos</button>
+        <button class="nav-btn" onclick="showSection('reportes')" style="display:none;">📈 Reportes</button>
+        <!-- Botones exclusivos del admin premium -->
+        <button class="nav-btn premium-only" onclick="showSection('control-usuarios')" style="display:none;">🎛️ Control Usuarios</button>
+        <button class="nav-btn premium-only" onclick="showSection('auditoria')" style="display:none;">🔍 Auditoría</button>
+        <button class="nav-btn" onclick="logout()" style="display:none;">🚪 Logout</button>
+      </div>
+    </nav>
+
+    <!-- Login Section -->
+    <section id="login" class="section active">
+      <div class="card">
+        <h2>Iniciar Sesión</h2>
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="loginEmail">Email:</label>
+            <input type="email" id="loginEmail" placeholder="usuario@ejemplo.com" required>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Contraseña:</label>
+            <input type="password" id="loginPassword" placeholder="Contraseña" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+          <div id="loginMessage" class="message"></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Register Section -->
+    <section id="register" class="section">
+      <div class="card">
+        <h2>Registrarse</h2>
+        <form id="registerForm">
+          <div class="form-group">
+            <label for="regNombre">Nombre:</label>
+            <input type="text" id="regNombre" placeholder="Tu nombre" required>
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email:</label>
+            <input type="email" id="regEmail" placeholder="email@ejemplo.com" required>
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Contraseña:</label>
+            <input type="password" id="regPassword" placeholder="Contraseña" required>
+          </div>
+          <div class="form-group">
+            <label for="regRol">Rol:</label>
+            <select id="regRol" required>
+              <option value="vendedor">Vendedor</option>
+              <option value="administrador">Administrador</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Registrarse</button>
+          <div id="registerMessage" class="message"></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Dashboard Section -->
+    <section id="dashboard" class="section">
+      <div class="card">
+        <h2>Dashboard</h2>
+        <div class="dashboard-grid">
+          <div class="stat-card">
+            <h3>Vehículos en Stock</h3>
+            <p class="stat-number" id="stockCount">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Minutas Activas</h3>
+            <p class="stat-number" id="minutasCount">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Clientes Registrados</h3>
+            <p class="stat-number" id="clientesCount">0</p>
+          </div>
+          <div class="stat-card">
+            <h3>Ventas del Mes</h3>
+            <p class="stat-number" id="ventasCount">0</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stock Section -->
+    <section id="stock" class="section">
+      <div class="card">
+        <h2>Gestión de Stock</h2>
+        <button class="btn btn-primary" onclick="toggleVehiculoForm()">➕ Añadir Vehículo</button>
+        
+        <div id="vehiculoForm" style="display: none; margin-top: 20px;">
+          <h3>Nuevo Vehículo</h3>
+          <form id="vehiculoFormElement">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tipo">Tipo:</label>
+                <select id="tipo" required>
+                  <option value="">Seleccionar...</option>
+                  <option value="auto">Auto</option>
+                  <option value="moto">Moto</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="condicion">Condición:</label>
+                <select id="condicion" required>
+                  <option value="">Seleccionar...</option>
+                  <option value="0km">0 km</option>
+                  <option value="usado">Usado</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="marca">Marca:</label>
+                <input type="text" id="marca" placeholder="Ej: Toyota" required>
+              </div>
+              <div class="form-group">
+                <label for="modelo">Modelo:</label>
+                <input type="text" id="modelo" placeholder="Ej: Corolla" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="version">Versión:</label>
+                <input type="text" id="version" placeholder="Ej: XEI">
+              </div>
+              <div class="form-group">
+                <label for="anio">Año:</label>
+                <input type="number" id="anio" placeholder="2024" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="precio">Precio:</label>
+                <input type="number" id="precio" placeholder="25000" step="0.01" required>
+              </div>
+              <div class="form-group" id="dominioGroup" style="display: none;">
+                <label for="dominio">Dominio:</label>
+                <input type="text" id="dominio" placeholder="ABC123">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar Vehículo</button>
+            <div id="vehiculoMessage" class="message"></div>
+          </form>
+        </div>
+
+        <div id="vehiculosList" style="margin-top: 30px;">
+          <h3>Vehículos en Stock</h3>
+          <div id="vehiculosContent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Clientes Section -->
+    <section id="clientes" class="section">
+      <div class="card">
+        <h2>Gestión de Clientes</h2>
+        <button class="btn btn-primary" onclick="toggleClienteForm()">➕ Añadir Cliente</button>
+        
+        <div id="clienteForm" style="display: none; margin-top: 20px;">
+          <h3>Nuevo Cliente</h3>
+          <form id="clienteFormElement">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cliNombre">Nombre:</label>
+                <input type="text" id="cliNombre" placeholder="Juan" required>
+              </div>
+              <div class="form-group">
+                <label for="cliApellido">Apellido:</label>
+                <input type="text" id="cliApellido" placeholder="Pérez" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cliDni">DNI:</label>
+                <input type="text" id="cliDni" placeholder="12345678" required>
+              </div>
+              <div class="form-group">
+                <label for="cliTelefono">Teléfono:</label>
+                <input type="tel" id="cliTelefono" placeholder="11-1234-5678">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cliEmail">Email:</label>
+                <input type="email" id="cliEmail" placeholder="cliente@ejemplo.com">
+              </div>
+              <div class="form-group">
+                <label for="cliDireccion">Dirección:</label>
+                <input type="text" id="cliDireccion" placeholder="Calle 123">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="cliObservaciones">Observaciones:</label>
+              <textarea id="cliObservaciones" placeholder="Notas adicionales..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+            <div id="clienteMessage" class="message"></div>
+          </form>
+        </div>
+
+        <div id="clientesList" style="margin-top: 30px;">
+          <h3>Clientes Registrados</h3>
+          <div id="clientesContent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Minutas Section -->
+    <section id="minutas" class="section">
+      <div class="card">
+        <h2>📋 Gestión de Minutas</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+          <button class="btn btn-primary" onclick="toggleMinutaForm()">➕ Minuta Rápida</button>
+          <button class="btn btn-success" onclick="toggleMinutaProfesional()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">📄 Planilla de Minuta Profesional</button>
+        </div>
+        
+        <!-- Formulario Minuta Rápida -->
+        <div id="minutaForm" style="display: none; margin-top: 20px;">
+          <h3>Nueva Minuta Rápida</h3>
+          <form id="minutaFormElement">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="minVehiculo">Vehículo:</label>
+                <select id="minVehiculo" required>
+                  <option value="">Seleccionar vehículo...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="minCliente">Cliente:</label>
+                <select id="minCliente" required>
+                  <option value="">Seleccionar cliente...</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="minPrecioOriginal">Precio Original:</label>
+                <input type="number" id="minPrecioOriginal" readonly>
+              </div>
+              <div class="form-group">
+                <label for="minPrecioFinal">Precio Final:</label>
+                <input type="number" id="minPrecioFinal" step="0.01" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="minObservaciones">Observaciones:</label>
+              <textarea id="minObservaciones" placeholder="Detalles de la operación..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Crear Minuta</button>
+            <div id="minutaMessage" class="message"></div>
+          </form>
+        </div>
+
+        <!-- Formulario Minuta Profesional Completo -->
+        <div id="minutaProfesionalForm" style="display: none; margin-top: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); padding: 30px; border-radius: 15px; border: 2px solid #667eea;">
+          
+          <!-- Encabezado con Logo -->
+          <div style="text-align: center; margin-bottom: 25px; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <img src="assets/logo.png" alt="De Grazia - Automotores" style="max-width: 120px; margin-bottom: 10px;" onerror="this.style.display='none'">
+            <h2 style="margin: 0; color: #333; font-size: 1.8em;">DE GRAZIA - AUTOMOTORES</h2>
+            <h3 style="margin: 10px 0 0 0; color: #667eea; font-size: 1.3em;">📄 MINUTA DE VENTA DE VEHÍCULO / MOTO</h3>
+            <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">Documento formal de operación comercial</p>
+          </div>
+
+          <form id="minutaProfesionalFormElement">
+            
+            <!-- A. Datos Generales -->
+            <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 8px;">📍 A. DATOS GENERALES</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Lugar:</label>
+                  <input type="text" id="mpLugar" placeholder="Ciudad, Provincia" value="Córdoba, Argentina">
+                </div>
+                <div class="form-group">
+                  <label>Fecha:</label>
+                  <input type="date" id="mpFecha">
+                </div>
+                <div class="form-group">
+                  <label>Nº de Minuta:</label>
+                  <input type="text" id="mpNumero" readonly placeholder="Se genera automáticamente">
+                </div>
+              </div>
+            </div>
+
+            <!-- B. Datos del Comprador -->
+            <div style="background: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 8px;">👤 B. DATOS DEL COMPRADOR</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Seleccionar Cliente Existente:</label>
+                  <select id="mpClienteSelect" onchange="cargarDatosCliente()">
+                    <option value="">-- Seleccionar o completar manualmente --</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre / Razón Social: *</label>
+                  <input type="text" id="mpCompradorNombre" required placeholder="Nombre completo o razón social">
+                </div>
+                <div class="form-group">
+                  <label>DNI / CUIT: *</label>
+                  <input type="text" id="mpCompradorDni" required placeholder="12.345.678">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Domicilio:</label>
+                  <input type="text" id="mpCompradorDomicilio" placeholder="Calle, Número, Ciudad">
+                </div>
+                <div class="form-group">
+                  <label>Teléfono:</label>
+                  <input type="tel" id="mpCompradorTelefono" placeholder="11-2233-4455">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="mpCompradorEmail" placeholder="email@ejemplo.com">
+              </div>
+            </div>
+
+            <!-- C. Datos del Vendedor -->
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #388e3c; border-bottom: 2px solid #388e3c; padding-bottom: 8px;">🏪 C. DATOS DEL VENDEDOR</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre del Vendedor: *</label>
+                  <input type="text" id="mpVendedorNombre" required placeholder="Nombre del vendedor">
+                </div>
+                <div class="form-group">
+                  <label>Concesionaria:</label>
+                  <input type="text" id="mpConcesionaria" value="De Grazia - Automotores" readonly>
+                </div>
+              </div>
+            </div>
+
+            <!-- D. Datos del Vehículo/Moto -->
+            <div style="background: #fff3e0; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #f57c00; border-bottom: 2px solid #f57c00; padding-bottom: 8px;">🚗 D. DATOS DEL VEHÍCULO / MOTO</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Seleccionar del Stock:</label>
+                  <select id="mpVehiculoSelect" onchange="cargarDatosVehiculo()">
+                    <option value="">-- Seleccionar o completar manualmente --</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo:</label>
+                  <select id="mpVehiculoTipo">
+                    <option value="auto">Auto</option>
+                    <option value="moto">Moto</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Condición:</label>
+                  <select id="mpVehiculoCondicion">
+                    <option value="0km">0 km</option>
+                    <option value="usado">Usado</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Marca: *</label>
+                  <input type="text" id="mpVehiculoMarca" required placeholder="Toyota, Honda...">
+                </div>
+                <div class="form-group">
+                  <label>Modelo: *</label>
+                  <input type="text" id="mpVehiculoModelo" required placeholder="Corolla, Civic...">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Año: *</label>
+                  <input type="number" id="mpVehiculoAnio" required placeholder="2024">
+                </div>
+                <div class="form-group">
+                  <label>Dominio (Patente):</label>
+                  <input type="text" id="mpVehiculoDominio" placeholder="ABC 123">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Número de Motor:</label>
+                  <input type="text" id="mpVehiculoMotor" placeholder="Nro. Motor">
+                </div>
+                <div class="form-group">
+                  <label>Número de Chasis:</label>
+                  <input type="text" id="mpVehiculoChasis" placeholder="Nro. Chasis">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Color:</label>
+                <input type="text" id="mpVehiculoColor" placeholder="Color del vehículo">
+              </div>
+            </div>
+
+            <!-- E. Condiciones de la Operación -->
+            <div style="background: #fce4ec; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #c2185b; border-bottom: 2px solid #c2185b; padding-bottom: 8px;">💳 E. CONDICIONES DE LA OPERACIÓN</h4>
+              
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondContado" onchange="toggleCondicionCampos()"> 💵 Contado efectivo
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondReserva" onchange="toggleCondicionCampos()"> 📝 Reserva
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondAnticipo" onchange="toggleCondicionCampos()"> 💰 Anticipo + Saldo
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondCredito" onchange="toggleCondicionCampos()"> 🏦 Crédito interno
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondFinanciacion" onchange="toggleCondicionCampos()"> 📊 Financiación
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondTarjeta" onchange="toggleCondicionCampos()"> 💳 Tarjeta de crédito
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondPermuta" onchange="toggleCondicionCampos()"> 🔄 Permuta
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondOtro" onchange="toggleCondicionCampos()"> ➕ Otro
+                </label>
+              </div>
+
+              <!-- Campos condicionales -->
+              <div id="mpCamposReserva" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">📝 Datos de Reserva</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto de Reserva ($):</label>
+                    <input type="number" id="mpReservaMonto" placeholder="1000000" onchange="calcularSaldos()">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposAnticipo" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">💰 Datos de Anticipo</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto Anticipo ($):</label>
+                    <input type="number" id="mpAnticipoMonto" placeholder="5000000" onchange="calcularSaldos()">
+                  </div>
+                  <div class="form-group">
+                    <label>Saldo Pendiente ($):</label>
+                    <input type="number" id="mpSaldoPendiente" readonly style="background: #f0f0f0;">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposFinanciacion" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">📊 Datos de Financiación</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Financiera:</label>
+                    <input type="text" id="mpFinanciera" placeholder="Nombre de la financiera">
+                  </div>
+                  <div class="form-group">
+                    <label>Cantidad de Cuotas:</label>
+                    <input type="number" id="mpFinCuotas" placeholder="12, 24, 36...">
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto por Cuota ($):</label>
+                    <input type="number" id="mpFinMontoCuota" placeholder="Monto mensual">
+                  </div>
+                  <div class="form-group">
+                    <label>Total Financiado ($):</label>
+                    <input type="number" id="mpFinTotal" readonly style="background: #f0f0f0;">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposTarjeta" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">💳 Datos de Tarjeta</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Tarjeta:</label>
+                    <select id="mpTarjetaTipo">
+                      <option value="">Seleccionar...</option>
+                      <option value="visa">Visa</option>
+                      <option value="mastercard">Mastercard</option>
+                      <option value="amex">American Express</option>
+                      <option value="otra">Otra</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Cuotas:</label>
+                    <select id="mpTarjetaCuotas">
+                      <option value="1">1 cuota</option>
+                      <option value="3">3 cuotas</option>
+                      <option value="6">6 cuotas</option>
+                      <option value="12">12 cuotas</option>
+                      <option value="18">18 cuotas</option>
+                      <option value="24">24 cuotas</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposPermuta" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">🔄 Vehículo en Parte de Pago</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Marca/Modelo del vehículo entregado:</label>
+                    <input type="text" id="mpPermutaVehiculo" placeholder="Ej: Toyota Corolla 2015">
+                  </div>
+                  <div class="form-group">
+                    <label>Valor tomado ($):</label>
+                    <input type="number" id="mpPermutaValor" placeholder="Valor del vehículo" onchange="calcularSaldos()">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Dominio del vehículo entregado:</label>
+                  <input type="text" id="mpPermutaDominio" placeholder="Patente">
+                </div>
+              </div>
+
+              <div id="mpCamposOtro" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">➕ Otra forma de pago</h5>
+                <div class="form-group">
+                  <label>Especificar:</label>
+                  <textarea id="mpOtroDetalle" rows="2" placeholder="Describir forma de pago..."></textarea>
+                </div>
+              </div>
+
+              <!-- Precio Total -->
+              <div style="background: white; padding: 20px; border-radius: 8px; border: 3px solid #667eea;">
+                <h5 style="margin: 0 0 15px 0; color: #667eea;">💰 RESUMEN DE LA OPERACIÓN</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Precio de Lista ($):</label>
+                    <input type="number" id="mpPrecioLista" placeholder="Precio original" onchange="calcularSaldos()">
+                  </div>
+                  <div class="form-group">
+                    <label>Precio Final de Venta ($): *</label>
+                    <input type="number" id="mpPrecioFinal" required placeholder="Precio acordado" style="font-size: 1.2em; font-weight: bold;" onchange="calcularSaldos()">
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>A Pagar / Saldo Final ($):</label>
+                    <input type="number" id="mpSaldoFinal" readonly style="background: #e8f5e9; font-size: 1.3em; font-weight: bold; color: #2e7d32;">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- F. Observaciones -->
+            <div style="background: #f3e5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #7b1fa2; border-bottom: 2px solid #7b1fa2; padding-bottom: 8px;">📝 F. OBSERVACIONES</h4>
+              <div class="form-group">
+                <textarea id="mpObservaciones" rows="4" placeholder="Aclaraciones especiales de la operación, condiciones particulares, compromisos, etc." style="width: 100%;"></textarea>
+              </div>
+            </div>
+
+            <!-- G. Firmas -->
+            <div style="background: #efebe9; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #5d4037; border-bottom: 2px solid #5d4037; padding-bottom: 8px;">✍️ G. FIRMAS</h4>
+              <div class="form-row">
+                <div class="form-group" style="text-align: center;">
+                  <label>Firma del Vendedor:</label>
+                  <div style="border: 2px dashed #999; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: white; margin-top: 5px;">
+                    <span style="color: #999;">Espacio para firma</span>
+                  </div>
+                  <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #666;">_____________________________</p>
+                  <p style="margin: 0; font-size: 0.85em; color: #999;">Firma y Aclaración</p>
+                </div>
+                <div class="form-group" style="text-align: center;">
+                  <label>Firma del Comprador:</label>
+                  <div style="border: 2px dashed #999; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: white; margin-top: 5px;">
+                    <span style="color: #999;">Espacio para firma</span>
+                  </div>
+                  <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #666;">_____________________________</p>
+                  <p style="margin: 0; font-size: 0.85em; color: #999;">Firma y Aclaración</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; padding: 20px; background: white; border-radius: 10px;">
+              <button type="button" class="btn btn-secondary" onclick="toggleMinutaProfesional()">❌ Cancelar</button>
+              <button type="button" class="btn btn-info" onclick="guardarBorradorMinuta()">💾 Guardar Borrador</button>
+              <button type="submit" class="btn btn-success" style="font-size: 1.1em; padding: 15px 30px;">✅ Confirmar y Guardar Minuta</button>
+              <button type="button" class="btn btn-primary" onclick="imprimirMinuta()" style="background: #333;">🖨️ Imprimir / PDF</button>
+            </div>
+            
+            <div id="minutaProfesionalMessage" class="message" style="margin-top: 15px;"></div>
+          </form>
+        </div>
+
+        <div id="minutasList" style="margin-top: 30px;">
+          <h3>Minutas Registradas</h3>
+          <div id="minutasContent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sección de Control de Usuarios (Solo Admin Premium) -->
+    <div id="control-usuarios" class="section">
+        <div class="card">
+            <h2>🎛️ Panel de Control de Usuarios</h2>
+            
+            <!-- Estado de Usuarios en Tiempo Real -->
+            <div class="usuarios-estado">
+                <h3>👥 Estado de Usuarios Conectados</h3>
+                <div id="usuariosConectados" class="usuarios-grid">
+                    <!-- Se cargarán dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Gestión de Usuarios -->
+            <div class="usuarios-gestion">
+                <h3>⚙️ Gestión de Usuarios</h3>
+                <div class="usuarios-lista" id="usuariosLista">
+                    <!-- Se cargarán dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Alertas y Notificaciones -->
+            <div class="alertas-panel">
+                <h3>🚨 Alertas Recientes</h3>
+                <div id="alertasRecientes" class="alertas-list">
+                    <!-- Se cargarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de Auditoría Completa -->
+    <div id="auditoria" class="section">
+        <div class="card">
+            <h2>📊 Auditoría Completa</h2>
+            
+            <!-- Filtros de Auditoría -->
+            <div class="auditoria-filtros">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Usuario:</label>
+                        <select id="auditUsuario">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Módulo:</label>
+                        <select id="auditModulo">
+                            <option value="">Todos los módulos</option>
+                            <option value="auth">Autenticación</option>
+                            <option value="vehiculos">Vehículos</option>
+                            <option value="clientes">Clientes</option>
+                            <option value="minutas">Minutas</option>
+                            <option value="usuarios">Usuarios</option>
+                            <option value="sistema">Sistema</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Acción:</label>
+                        <select id="auditAccion">
+                            <option value="">Todas las acciones</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" onclick="cargarAuditoria()">🔍 Filtrar</button>
+                    </div>
+                </div>
+                
+                <!-- Botones de Exportación y Respaldo -->
+                <div class="export-buttons" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                    <h4 style="margin: 0 0 15px 0; color: #495057;">💾 Exportación y Respaldo de Datos</h4>
+                    <div class="form-row">
+                        <button class="btn btn-success" onclick="exportarDatosCompletos()" style="margin-right: 10px;">
+                            📤 Exportar Datos Completos (JSON)
+                        </button>
+                        <button class="btn btn-info" onclick="descargarRespaldoDB()" style="margin-right: 10px;">
+                            📥 Descargar Respaldo (DB)
+                        </button>
+                        <button class="btn btn-warning" onclick="verEstadoBackups()">
+                            📊 Ver Estado de Backups
+                        </button>
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;">
+                        🕐 Los respaldos automáticos se realizan cada 5 minutos. Los datos se almacenan localmente y pueden ser exportados para mayor seguridad.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tabla de Auditoría -->
+            <div class="auditoria-tabla">
+                <table id="auditoriaTable">
+                    <thead>
+                        <tr>
+                            <th>Fecha/Hora</th>
+                            <th>Usuario</th>
+                            <th>Acción</th>
+                            <th>Módulo</th>
+                            <th>Detalles</th>
+                            <th>IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditoriaBody">
+                        <!-- Se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de Pagos -->
+    <div id="pagos" class="section">
+        <div class="card">
+            <h2>💰 Gestión de Pagos</h2>
+            
+            <div style="margin-bottom: 30px;">
+                <h3>Resumen de Pagos</h3>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Total Ingresado</h3>
+                        <p class="stat-number" id="totalPagado">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Pendiente</h3>
+                        <p class="stat-number" id="totalPendiente">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Minutas Pagadas</h3>
+                        <p class="stat-number" id="minutasPagadas">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Minutas Pendiente</h3>
+                        <p class="stat-number" id="minutasPendientes">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Registro de Pagos Recibidos</h3>
+            <div id="registroPagosContent" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <!-- Sección de Reportes -->
+    <div id="reportes" class="section">
+        <div class="card">
+            <h2>📈 Dashboard de Ventas</h2>
+            
+            <div style="margin-bottom: 30px;">
+                <h3>Estadísticas Generales</h3>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Total Ventas</h3>
+                        <p class="stat-number" id="totalVentas">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Ingresos Totales</h3>
+                        <p class="stat-number" id="ingresosTotales">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Vehículos en Stock</h3>
+                        <p class="stat-number" id="vehiculosStock">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tasa de Conversión</h3>
+                        <p class="stat-number" id="tasaConversion">0%</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Historial de Transacciones</h3>
+            <div id="historialVentasContent" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <!-- Modal de Suspensión de Usuario -->
+    <div id="modalSuspension" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🚫 Suspender Usuario</h3>
+                <span class="close" onclick="cerrarModalSuspension()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Usuario a suspender:</label>
+                    <input type="text" id="suspendNombre" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Motivo de suspensión:</label>
+                    <select id="suspendMotivo">
+                        <option value="mala_accion">Mala acción</option>
+                        <option value="mala_administracion">Mala administración</option>
+                        <option value="inactividad">Inactividad prolongada</option>
+                        <option value="violacion_politicas">Violación de políticas</option>
+                        <option value="otro">Otro (especificar)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="motivoOtroGroup" style="display:none;">
+                    <label>Especificar motivo:</label>
+                    <textarea id="suspendMotivoOtro" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Mensaje para el usuario:</label>
+                    <textarea id="suspendMensaje" rows="4" placeholder="Este mensaje se mostrará al usuario cuando intente iniciar sesión."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Duración:</label>
+                    <select id="suspendDuracion">
+                        <option value="temporal">Temporal (hasta que yo lo reactive)</option>
+                        <option value="1_dia">1 día</option>
+                        <option value="3_dias">3 días</option>
+                        <option value="1_semana">1 semana</option>
+                        <option value="permanente">Permanente</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModalSuspension()">Cancelar</button>
+                <button class="btn btn-danger" onclick="confirmarSuspension()">🚫 Suspender Usuario</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Mensaje de Usuario Suspendido -->
+    <div id="modalUsuarioSuspendido" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🚫 Cuenta Suspendida</h3>
+            </div>
+            <div class="modal-body">
+                <div class="suspension-message">
+                    <div class="icono-suspension">🚫</div>
+                    <h4>Tu cuenta ha sido suspendida</h4>
+                    <p id="mensajeSuspension"></p>
+                    <p><strong>Motivo:</strong> <span id="motivoSuspension"></span></p>
+                    <p><strong>Fecha:</strong> <span id="fechaSuspension"></span></p>
+                    <div class="contacto-admin">
+                        <p>Para más información, contacta al administrador del sistema.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="cerrarModalUsuarioSuspendido()">Entendido</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <script>
+    // Esperar a que DOM esté listo
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM ready');
+      console.log('window.api:', window.api);
+    });
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
