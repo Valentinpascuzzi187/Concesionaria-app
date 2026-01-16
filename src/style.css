@@ -4,9 +4,22 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Paleta corporativa De Grazia */
+  --color-primary: #4a90e2;      /* Azul corporativo */
+  --color-secondary: #d4af37;    /* Oro - Detalle premium */
+  --color-base: #1a1a1a;         /* Negro base */
+  --color-light: #f5f5f5;        /* Gris claro */
+  --color-dark: #2d2d2d;         /* Gris oscuro */
+  --color-success: #2ecc71;
+  --color-danger: #e74c3c;
+  --color-warning: #f39c12;
+}
+
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Trebuchet MS', 'Lucida Grande', 'Lucida Sans Unicode', 'Lucida Sans', sans-serif;
+  background: linear-gradient(135deg, var(--color-base) 0%, var(--color-dark) 100%);
+  color: #333;
   min-height: 100vh;
   padding: 20px;
 }
@@ -27,6 +40,7 @@ body {
   align-items: center;
   margin-bottom: 2rem;
   gap: 1rem;
+  border-top: 3px solid var(--color-secondary);
 }
 
 .navbar-brand {
@@ -43,13 +57,16 @@ body {
   border-radius: 50%;
   object-fit: cover;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border: 2px solid var(--color-secondary);
 }
 
 .navbar-brand h1 {
-  color: #667eea;
+  color: var(--color-primary);
   font-size: 1.5rem;
   text-align: center;
   margin: 0;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 .navbar-menu {
@@ -61,24 +78,29 @@ body {
 
 .nav-btn {
   padding: 0.6rem 1rem;
-  border: 2px solid #667eea;
+  border: 2px solid var(--color-primary);
   background: white;
-  color: #667eea;
+  color: var(--color-primary);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .nav-btn:hover {
-  background: #667eea;
+  background: var(--color-primary);
   color: white;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+  transform: translateY(-2px);
 }
 
 .nav-btn.active {
-  background: #667eea;
+  background: var(--color-primary);
   color: white;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
 /* Responsive navbar */
@@ -160,7 +182,7 @@ body {
   color: #333;
   margin-bottom: 1.5rem;
   font-size: 1.8rem;
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid var(--color-primary);
   padding-bottom: 0.5rem;
 }
 
@@ -200,7 +222,7 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--color-primary);
 }
 
 textarea {
@@ -221,7 +243,7 @@ textarea {
 }
 
 .btn-primary {
-  background: #667eea;
+  background: var(--color-primary);
   color: white;
 }
 
@@ -268,7 +290,7 @@ textarea {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-dark) 100%);
   color: white;
   padding: 2rem;
   border-radius: 10px;
@@ -289,27 +311,48 @@ textarea {
 
 .stat-number {
   font-size: 2.5rem;
-  font-weight: bold;
+  font-weight: 700;
   margin: 0;
+  color: var(--color-secondary);
+  letter-spacing: 1px;
 }
 
 /* Vehicle Cards */
 .vehiculo-card, .cliente-card, .minuta-card {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
   padding: 1.5rem;
   margin-bottom: 1rem;
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.vehiculo-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%);
 }
 
 .vehiculo-card:hover, .cliente-card:hover, .minuta-card:hover {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(74, 144, 226, 0.15);
+  transform: translateY(-3px);
+  border-color: var(--color-secondary);
+}
+}
+
 }
 
 .vehiculo-card h4, .cliente-card h4, .minuta-card h4 {
-  color: #667eea;
+  color: var(--color-primary);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: 1.1em;
   margin-bottom: 1rem;
   font-size: 1.3rem;
 }
@@ -584,12 +627,12 @@ textarea {
 }
 
 .foto-thumbnail:hover {
-  border-color: #667eea;
+  border-color: var(--color-primary);
   transform: scale(1.05);
 }
 
 .foto-upload {
-  border: 2px dashed #667eea;
+  border: 2px dashed var(--color-primary);
   border-radius: 8px;
   padding: 20px;
   text-align: center;
@@ -611,7 +654,7 @@ textarea {
 }
 
 #vehiculoForm h3, #clienteForm h3, #minutaForm h3 {
-  color: #667eea;
+  color: var(--color-primary);
   margin-bottom: 1rem;
 }
 
@@ -628,7 +671,7 @@ textarea {
   width: 40px;
   height: 40px;
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
+  border-top: 4px solid var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -826,7 +869,7 @@ textarea {
 }
 
 .modal-header {
-  background: #667eea;
+  background: var(--color-primary);
   color: white;
   padding: 1.5rem;
   border-radius: 10px 10px 0 0;
@@ -883,7 +926,7 @@ textarea {
   padding: 1rem;
   border-radius: 8px;
   margin-top: 1.5rem;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid var(--color-primary);
 }
 
 /* Botones especiales */
