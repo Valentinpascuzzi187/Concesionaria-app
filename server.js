@@ -42,14 +42,15 @@ app.get('/src/style.css', (req, res) => res.sendFile(path.join(__dirname, 'src',
 // Ruta raíz actualizada
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
 
-// Versión actualizada - v2.5.2 - Icono corregido - 2026-01-16
-console.log('🚀 Concesionaria App v2.5.2 - Logo De Grazia prominente - FORCE UPDATE');
+// Versión actualizada - v2.9.0 - Mobile responsivo + Almacenamiento MySQL - 2026-01-16
+const APP_VERSION = '2.9.0';
+console.log(`🚀 Concesionaria App v${APP_VERSION} - Mobile responsivo + Almacenamiento MySQL`);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    version: '2.5.0',
+    version: APP_VERSION,
     timestamp: new Date().toISOString(),
     features: {
       pantalla_inicial: 'login',
@@ -57,8 +58,20 @@ app.get('/api/health', (req, res) => {
       planilla_completa: true,
       eliminacion_clientes_fix: true,
       login_corregido: true,
-      api_actualizada: true
+      api_actualizada: true,
+      mobile_responsive: true,
+      file_storage_mysql: true,
+      update_notifications: true
     }
+  });
+});
+
+// Versión endpoint
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+    updateAvailable: false
   });
 });
 
@@ -624,9 +637,59 @@ async function initTables() {
     tipo ENUM('exterior','interior','detalles','documentos') DEFAULT 'exterior',
     nombre VARCHAR(255) NULL,
     ordenamiento INT DEFAULT 0,
+    archivo LONGBLOB NULL,
+    tipo_mime VARCHAR(50) DEFAULT 'image/jpeg',
+    size INT DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_foto_vehiculo FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id)
       ON DELETE CASCADE ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
+
+  // Tabla para documentos de clientes
+  await q(`CREATE TABLE IF NOT EXISTS documentos_cliente (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    cliente_id INT NOT NULL,
+    tipo VARCHAR(100) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
+    archivo LONGBLOB NOT NULL,
+    tipo_mime VARCHAR(50) NOT NULL,
+    size INT NOT NULL,
+    notas TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_doc_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+      ON DELETE CASCADE ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
+
+  // Tabla para archivos de minutas (PDFs, documentos, etc.)
+  await q(`CREATE TABLE IF NOT EXISTS archivos_minuta (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    minuta_id INT NOT NULL,
+    tipo VARCHAR(100) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
+    archivo LONGBLOB NOT NULL,
+    tipo_mime VARCHAR(50) NOT NULL,
+    size INT NOT NULL,
+    descripcion TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_archivo_minuta FOREIGN KEY (minuta_id) REFERENCES minutas(id)
+      ON DELETE CASCADE ON UPDATE CASCADE
+  ) ENGINE=InnoDB`);
+
+  // Tabla para almacenamiento genérico de archivos
+  await q(`CREATE TABLE IF NOT EXISTS archivos_generales (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    referencia_tabla VARCHAR(100) NOT NULL,
+    referencia_id INT NOT NULL,
+    tipo_archivo VARCHAR(100) NOT NULL,
+    nombre VARCHAR(255) NOT NULL,
+    archivo LONGBLOB NOT NULL,
+    tipo_mime VARCHAR(50) NOT NULL,
+    size INT NOT NULL,
+    descripcion TEXT NULL,
+    created_by INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_archivo_gen_usuario FOREIGN KEY (created_by) REFERENCES usuarios(id)
+      ON DELETE SET NULL ON UPDATE CASCADE
   ) ENGINE=InnoDB`);
 }
 
@@ -2303,6 +2366,236 @@ app.put('/api/fotos/:id/reordenar', async (req, res) => {
     res.json({ message: 'Orden actualizado' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar orden' });
+  }
+});
+
+/* =========================
+   ALMACENAMIENTO DE ARCHIVOS EN MYSQL
+========================= */
+
+// Subir archivo de foto con base64
+app.post('/api/vehiculos/:id/fotos/upload-blob', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { archivo, tipo_mime, nombre, tipo } = req.body;
+
+    if (!archivo || !tipo_mime) {
+      return res.status(400).json({ message: 'Archivo y tipo_mime son requeridos' });
+    }
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    // Convertir base64 a Buffer
+    const buffer = Buffer.from(archivo, 'base64');
+    const size = buffer.length;
+
+    const [result] = await q(
+      `INSERT INTO fotografia_vehiculo (vehiculo_id, url_imagen, tipo, nombre, archivo, tipo_mime, size, ordenamiento)
+       VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(ordenamiento) FROM fotografia_vehiculo WHERE vehiculo_id = ?), 0) + 1)`,
+      [id, `blob://${id}/foto_${Date.now()}`, tipo || 'exterior', nombre || null, buffer, tipo_mime, size, id]
+    );
+
+    res.status(201).json({ 
+      message: 'Foto almacenada en MySQL',
+      id: result.insertId,
+      size: size
+    });
+  } catch (error) {
+    console.error('Error al almacenar foto:', error);
+    res.status(500).json({ message: 'Error al almacenar foto' });
+  }
+});
+
+// Descargar archivo de foto
+app.get('/api/fotos/:id/descargar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const foto = await qFirst('SELECT * FROM fotografia_vehiculo WHERE id = ? AND archivo IS NOT NULL', [id]);
+    
+    if (!foto) return res.status(404).json({ message: 'Foto no encontrada' });
+
+    res.setHeader('Content-Type', foto.tipo_mime || 'image/jpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="${foto.nombre || 'foto.jpg'}"`);
+    res.setHeader('Content-Length', foto.size);
+    res.send(foto.archivo);
+  } catch (error) {
+    console.error('Error al descargar foto:', error);
+    res.status(500).json({ message: 'Error al descargar foto' });
+  }
+});
+
+// Subir documento de cliente
+app.post('/api/clientes/:id/documentos/upload', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { archivo, tipo_mime, nombre, tipo, notas } = req.body;
+
+    if (!archivo || !tipo_mime || !tipo) {
+      return res.status(400).json({ message: 'Archivo, tipo_mime y tipo son requeridos' });
+    }
+
+    const cliente = await qFirst('SELECT * FROM clientes WHERE id = ? AND eliminado = 0', [id]);
+    if (!cliente) return res.status(404).json({ message: 'Cliente no encontrado' });
+
+    const buffer = Buffer.from(archivo, 'base64');
+    const size = buffer.length;
+
+    const [result] = await q(
+      `INSERT INTO documentos_cliente (cliente_id, tipo, nombre, archivo, tipo_mime, size, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, tipo, nombre || `documento_${Date.now()}`, buffer, tipo_mime, size, notas || null]
+    );
+
+    res.status(201).json({ 
+      message: 'Documento almacenado',
+      id: result.insertId,
+      size: size
+    });
+  } catch (error) {
+    console.error('Error al almacenar documento:', error);
+    res.status(500).json({ message: 'Error al almacenar documento' });
+  }
+});
+
+// Obtener documentos de cliente
+app.get('/api/clientes/:id/documentos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const docs = await q(
+      `SELECT id, tipo, nombre, tipo_mime, size, created_at FROM documentos_cliente WHERE cliente_id = ? ORDER BY created_at DESC`,
+      [id]
+    );
+    res.json(docs || []);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error al obtener documentos' });
+  }
+});
+
+// Descargar documento de cliente
+app.get('/api/clientes/:id/documentos/:docId/descargar', async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const doc = await qFirst(
+      'SELECT * FROM documentos_cliente WHERE id = ? AND cliente_id = ?',
+      [docId, id]
+    );
+    
+    if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
+
+    res.setHeader('Content-Type', doc.tipo_mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.nombre}"`);
+    res.setHeader('Content-Length', doc.size);
+    res.send(doc.archivo);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error al descargar documento' });
+  }
+});
+
+// Subir archivo a minuta
+app.post('/api/minutas/:id/archivos/upload', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { archivo, tipo_mime, nombre, tipo, descripcion } = req.body;
+
+    if (!archivo || !tipo_mime || !tipo) {
+      return res.status(400).json({ message: 'Archivo, tipo_mime y tipo son requeridos' });
+    }
+
+    const minuta = await qFirst('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id]);
+    if (!minuta) return res.status(404).json({ message: 'Minuta no encontrada' });
+
+    const buffer = Buffer.from(archivo, 'base64');
+    const size = buffer.length;
+
+    const [result] = await q(
+      `INSERT INTO archivos_minuta (minuta_id, tipo, nombre, archivo, tipo_mime, size, descripcion)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, tipo, nombre || `archivo_${Date.now()}`, buffer, tipo_mime, size, descripcion || null]
+    );
+
+    res.status(201).json({ 
+      message: 'Archivo almacenado en minuta',
+      id: result.insertId,
+      size: size
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error al almacenar archivo' });
+  }
+});
+
+// Obtener archivos de minuta
+app.get('/api/minutas/:id/archivos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const archivos = await q(
+      `SELECT id, tipo, nombre, tipo_mime, size, created_at FROM archivos_minuta WHERE minuta_id = ? ORDER BY created_at DESC`,
+      [id]
+    );
+    res.json(archivos || []);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error al obtener archivos' });
+  }
+});
+
+// Descargar archivo de minuta
+app.get('/api/minutas/:id/archivos/:archivoId/descargar', async (req, res) => {
+  try {
+    const { id, archivoId } = req.params;
+    const archivo = await qFirst(
+      'SELECT * FROM archivos_minuta WHERE id = ? AND minuta_id = ?',
+      [archivoId, id]
+    );
+    
+    if (!archivo) return res.status(404).json({ message: 'Archivo no encontrado' });
+
+    res.setHeader('Content-Type', archivo.tipo_mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${archivo.nombre}"`);
+    res.setHeader('Content-Length', archivo.size);
+    res.send(archivo.archivo);
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error al descargar archivo' });
+  }
+});
+
+// Eliminar documento
+app.delete('/api/clientes/:id/documentos/:docId', async (req, res) => {
+  try {
+    const { id, docId } = req.params;
+    const doc = await qFirst(
+      'SELECT * FROM documentos_cliente WHERE id = ? AND cliente_id = ?',
+      [docId, id]
+    );
+    
+    if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
+    
+    await q('DELETE FROM documentos_cliente WHERE id = ?', [docId]);
+    res.json({ message: 'Documento eliminado' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar documento' });
+  }
+});
+
+// Eliminar archivo de minuta
+app.delete('/api/minutas/:id/archivos/:archivoId', async (req, res) => {
+  try {
+    const { id, archivoId } = req.params;
+    const archivo = await qFirst(
+      'SELECT * FROM archivos_minuta WHERE id = ? AND minuta_id = ?',
+      [archivoId, id]
+    );
+    
+    if (!archivo) return res.status(404).json({ message: 'Archivo no encontrado' });
+    
+    await q('DELETE FROM archivos_minuta WHERE id = ?', [archivoId]);
+    res.json({ message: 'Archivo eliminado' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar archivo' });
   }
 });
 

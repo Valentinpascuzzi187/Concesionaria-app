@@ -1,1 +1,1 @@
-v2.8.0 - Carrusel automático de vehículos, Pagos y Reportes mejorados - Thu Jan 16 2026
+v2.9.0 - Carrusel automático de vehículos, Pagos y Reportes mejorados - Thu Jan 16 2026
