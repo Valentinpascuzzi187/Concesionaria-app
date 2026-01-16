@@ -8,6 +8,7 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 const XLSX = require('xlsx');
 const fs = require('fs');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -2302,6 +2303,141 @@ app.put('/api/fotos/:id/reordenar', async (req, res) => {
     res.json({ message: 'Orden actualizado' });
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar orden' });
+  }
+});
+
+/* =========================
+   EXPORTAR PDF
+========================= */
+
+// Exportar seguimiento de vehículo como PDF
+app.get('/api/vehiculos/:id/seguimiento/pdf', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    const seguimientos = await q(
+      `SELECT st.*, u.nombre as nombre_usuario, m.numero as numero_minuta
+       FROM seguimiento_tramites st
+       LEFT JOIN usuarios u ON st.usuario_id = u.id
+       LEFT JOIN minutas m ON st.minuta_id = m.id
+       WHERE st.vehiculo_id = ? AND st.eliminado = 0
+       ORDER BY st.created_at DESC`,
+      [id]
+    );
+
+    const minuta = await qFirst('SELECT * FROM minutas WHERE vehiculo_id = ? AND estado NOT IN ("cerrada", "cancelada") ORDER BY created_at DESC LIMIT 1', [id]);
+
+    // Crear documento PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const fileName = `seguimiento_vehiculo_${vehiculo.id}_${new Date().getTime()}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    doc.pipe(res);
+
+    // Encabezado
+    doc.fontSize(18).font('Helvetica-Bold').text('REPORTE DE SEGUIMIENTO DE VEHÍCULO', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text('De Grazia - Automotores', { align: 'center' });
+    doc.moveDown(0.5);
+
+    // Línea separadora
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(1);
+
+    // Información del Vehículo
+    doc.fontSize(14).font('Helvetica-Bold').text('Información del Vehículo');
+    doc.fontSize(11).font('Helvetica');
+    doc.text(`Marca: ${vehiculo.marca}`, { width: 250 });
+    doc.text(`Modelo: ${vehiculo.modelo}`, { width: 250 });
+    doc.text(`Versión: ${vehiculo.version || 'N/A'}`, { width: 250 });
+    doc.text(`Año: ${vehiculo.anio}`, { width: 250 });
+    doc.text(`Condición: ${vehiculo.condicion}`, { width: 250 });
+    doc.text(`Precio: $${vehiculo.precio.toLocaleString('es-AR')}`, { width: 250 });
+    doc.text(`Dominio: ${vehiculo.dominio || 'N/A'}`, { width: 250 });
+    doc.text(`Estado Actual: ${vehiculo.estado}`, { width: 250 });
+    doc.moveDown(0.5);
+
+    // Línea separadora
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(1);
+
+    // Información de Minuta
+    if (minuta) {
+      doc.fontSize(14).font('Helvetica-Bold').text('Información de Minuta');
+      doc.fontSize(11).font('Helvetica');
+      doc.text(`Nº Minuta: ${minuta.numero || minuta.id}`, { width: 250 });
+      doc.text(`Estado: ${minuta.estado}`, { width: 250 });
+      doc.text(`Precio Original: $${minuta.precio_original.toLocaleString('es-AR')}`, { width: 250 });
+      doc.text(`Precio Final: $${minuta.precio_final.toLocaleString('es-AR')}`, { width: 250 });
+      doc.text(`Fecha: ${new Date(minuta.created_at).toLocaleDateString('es-AR')}`, { width: 250 });
+      doc.moveDown(0.5);
+
+      // Línea separadora
+      doc.strokeColor('#cccccc').lineWidth(1).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+      doc.moveDown(1);
+    }
+
+    // Historial de Seguimiento
+    doc.fontSize(14).font('Helvetica-Bold').text('Historial de Seguimiento');
+    doc.moveDown(0.5);
+
+    if (seguimientos && seguimientos.length > 0) {
+      doc.fontSize(11).font('Helvetica');
+
+      seguimientos.forEach((seg, index) => {
+        // Fecha y Estado
+        const fecha = new Date(seg.created_at).toLocaleDateString('es-AR', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        const hora = new Date(seg.created_at).toLocaleTimeString('es-AR');
+
+        doc.font('Helvetica-Bold').text(`#${seguimientos.length - index}. ${seg.estado.toUpperCase()} - ${fecha} ${hora}`);
+
+        // Detalles
+        doc.font('Helvetica').fontSize(10);
+        doc.text(`Porcentaje de Avance: ${seg.porcentaje_avance}%`, { indent: 20 });
+        if (seg.nombre_usuario) doc.text(`Registrado por: ${seg.nombre_usuario}`, { indent: 20 });
+        if (seg.notas) {
+          doc.text(`Notas:`, { indent: 20 });
+          doc.text(seg.notas, { indent: 40, width: 450 });
+        }
+
+        // Barra de progreso visual
+        const barWidth = 200;
+        const filledWidth = (seg.porcentaje_avance / 100) * barWidth;
+        doc.strokeColor('#ddd').lineWidth(1).rect(20 + 20, doc.y + 5, barWidth, 10).stroke();
+        doc.fillColor('#667eea').rect(20 + 20, doc.y, filledWidth, 10).fill();
+        doc.fillColor('black');
+        doc.fontSize(9).text(`${seg.porcentaje_avance}%`, 20 + 20 + barWidth + 10, doc.y);
+
+        doc.moveDown(1.5);
+      });
+    } else {
+      doc.fontSize(11).font('Helvetica').text('No hay registros de seguimiento');
+      doc.moveDown(0.5);
+    }
+
+    // Pie de página
+    doc.moveDown(2);
+    doc.strokeColor('#cccccc').lineWidth(1).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(9).font('Helvetica').fillColor('#999999');
+    doc.text(`Generado el: ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}`, { align: 'center' });
+    doc.text('De Grazia - Automotores | Sistema de Gestión Profesional', { align: 'center' });
+
+    // Finalizar PDF
+    doc.end();
+
+  } catch (error) {
+    console.error('Error al generar PDF:', error);
+    res.status(500).json({ message: 'Error al generar PDF' });
   }
 });
 

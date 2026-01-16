@@ -67,7 +67,9 @@ const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
       crearSeguimiento: (vehiculo_id, datos) => call(`/api/vehiculos/${vehiculo_id}/seguimiento`, 'POST', datos),
       actualizarSeguimiento: (id, datos) => call(`/api/seguimientos/${id}`, 'PUT', datos),
       eliminarFoto: (id) => call(`/api/fotos/${id}`, 'DELETE', {}),
-      reordenarFoto: (id, ordenamiento) => call(`/api/fotos/${id}/reordenar`, 'PUT', { ordenamiento })
+      reordenarFoto: (id, ordenamiento) => call(`/api/fotos/${id}/reordenar`, 'PUT', { ordenamiento }),
+      // Exportar PDF
+      descargarSeguimientoPDF: (vehiculo_id) => `${BASE}/api/vehiculos/${vehiculo_id}/seguimiento/pdf`
     };
 
     if (!window.api) window.api = apiFallback;
@@ -1321,7 +1323,10 @@ function verSeguimiento(vehiculoId) {
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2>Seguimiento del Trámite</h2>
-      <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+      <div>
+        <button onclick="descargarSeguimientoPDF(${vehiculoId})" style="background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-right: 10px;">📄 Descargar PDF</button>
+        <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+      </div>
     </div>
     <div id="seguimientoContent" style="text-align: center; padding: 20px;">
       <p>Cargando...</p>
@@ -1456,5 +1461,21 @@ function verFotoGrande(url) {
   modal.innerHTML = `<img src="${url}" style="max-width: 90%; max-height: 90%; border-radius: 8px;">`;
   modal.onclick = () => modal.remove();
   document.body.appendChild(modal);
+}
+
+// Descargar seguimiento como PDF
+function descargarSeguimientoPDF(vehiculoId) {
+  try {
+    const pdfUrl = window.api.descargarSeguimientoPDF(vehiculoId);
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = `seguimiento_vehiculo_${vehiculoId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    alert('✅ PDF descargado correctamente');
+  } catch (error) {
+    alert('❌ Error al descargar PDF: ' + error.message);
+  }
 }
 
