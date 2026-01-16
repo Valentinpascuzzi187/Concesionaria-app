@@ -23,33 +23,52 @@ body {
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
   margin-bottom: 2rem;
-  flex-wrap: wrap;
   gap: 1rem;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.navbar-brand .brand-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .navbar-brand h1 {
   color: #667eea;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
+  text-align: center;
+  margin: 0;
 }
 
 .navbar-menu {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .nav-btn {
-  padding: 0.7rem 1.2rem;
+  padding: 0.6rem 1rem;
   border: 2px solid #667eea;
   background: white;
   color: #667eea;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 500;
+  font-size: 0.9rem;
 }
 
 .nav-btn:hover {
@@ -60,6 +79,57 @@ body {
 .nav-btn.active {
   background: #667eea;
   color: white;
+}
+
+/* Responsive navbar */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.8rem;
+  }
+  
+  .navbar-brand .brand-logo {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .navbar-brand h1 {
+    font-size: 1.2rem;
+  }
+  
+  .nav-btn {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+  
+  .navbar {
+    padding: 0.6rem;
+    gap: 0.8rem;
+  }
+  
+  .navbar-brand .brand-logo {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .navbar-brand h1 {
+    font-size: 1rem;
+  }
+  
+  .navbar-menu {
+    gap: 0.3rem;
+  }
+  
+  .nav-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    border-width: 1px;
+  }
 }
 
 /* Sections */

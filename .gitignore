@@ -3,3 +3,7 @@ node_modules/
 backups/
 exports/
 .env
+
+# JDK tools (muy grandes para git)
+tools/jdk17/
+tools/jdk21/

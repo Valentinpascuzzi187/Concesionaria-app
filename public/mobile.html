@@ -233,6 +233,75 @@
             margin-bottom: 10px;
         }
 
+        /* Responsive mejorado para móviles */
+        @media (max-width: 400px) {
+            body {
+                padding: 5px;
+            }
+            
+            .section {
+                padding: 12px;
+            }
+            
+            .section h2 {
+                font-size: 1.1em;
+            }
+            
+            .nav-btn {
+                padding: 10px 12px;
+                font-size: 0.8em;
+            }
+            
+            .btn {
+                padding: 12px;
+                font-size: 0.9em;
+            }
+            
+            .card {
+                padding: 12px;
+            }
+            
+            .card h3 {
+                font-size: 0.9em;
+            }
+            
+            .card p {
+                font-size: 0.8em;
+            }
+            
+            .form-group input,
+            .form-group select {
+                padding: 10px;
+                font-size: 14px;
+            }
+            
+            .header h1 {
+                font-size: 1.1em;
+            }
+            
+            /* Tablas responsive */
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            /* Formularios de minuta */
+            .minuta-form .form-group {
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* Scroll suave */
+        .list-container {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevenir zoom en inputs en iOS */
+        input, select, textarea {
+            font-size: 16px !important;
+        }
+
         @media (min-width: 768px) {
             .container {
                 max-width: 600px;
@@ -490,22 +559,54 @@
         <!-- Usuarios (Premium) -->
         <section id="usuarios" class="section">
             <h2>👤 Control de Usuarios</h2>
-            <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
-                <button class="btn btn-primary" onclick="cargarAlertasRecientes()">🔔 Alertas recientes</button>
-                <button class="btn btn-secondary" onclick="cargarNotificaciones()">📨 Notificaciones</button>
+            
+            <!-- Resumen de Actividad en Tiempo Real -->
+            <div id="actividadResumen" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; padding:15px; border-radius:10px; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0;">📊 Resumen de Actividad</h4>
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; font-size:0.85em;">
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="totalUsuarios">-</div>
+                        <div>Usuarios</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="usuariosActivos">-</div>
+                        <div>Activos Hoy</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="minutasHoy">-</div>
+                        <div>Minutas Hoy</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="accionesHoy">-</div>
+                        <div>Acciones Hoy</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+                <button class="btn btn-primary" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="cargarAlertasRecientes()">🔔 Alertas</button>
+                <button class="btn btn-secondary" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="cargarNotificaciones()">📨 Notificaciones</button>
+                <button class="btn btn-success" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="actualizarResumenActividad()">🔄 Actualizar</button>
             </div>
 
-            <div id="alertasBox" style="display:none; margin-bottom:12px;">
-                <h4>🔔 Alertas Premium</h4>
-                <div class="list-container" id="alertasList"></div>
+            <div id="alertasBox" style="display:none; margin-bottom:12px; background:#fff3cd; padding:10px; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0;">🔔 Alertas Premium</h4>
+                    <button onclick="document.getElementById('alertasBox').style.display='none'" style="background:none; border:none; font-size:1.2em; cursor:pointer;">✕</button>
+                </div>
+                <div class="list-container" id="alertasList" style="max-height:200px;"></div>
             </div>
 
-            <div id="notificacionesBox" style="display:none; margin-bottom:12px;">
-                <h4>📨 Notificaciones</h4>
-                <div class="list-container" id="notificacionesList"></div>
+            <div id="notificacionesBox" style="display:none; margin-bottom:12px; background:#d4edda; padding:10px; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0;">📨 Notificaciones</h4>
+                    <button onclick="document.getElementById('notificacionesBox').style.display='none'" style="background:none; border:none; font-size:1.2em; cursor:pointer;">✕</button>
+                </div>
+                <div class="list-container" id="notificacionesList" style="max-height:200px;"></div>
             </div>
 
-            <div class="list-container" id="usuariosList">
+            <h4 style="margin:10px 0;">👥 Usuarios Registrados</h4>
+            <div class="list-container" id="usuariosList" style="max-height:none;">
                 <p class="empty-message">Cargando usuarios...</p>
             </div>
         </section>
@@ -725,17 +826,24 @@
             try {
                 const vehiculos = await apiCall('/api/vehiculos');
                 const container = document.getElementById('vehiculosList');
+                const esAdmin = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin');
                 
                 container.innerHTML = vehiculos.length ? vehiculos.map(v => `
-                    <div class="card" style="display:flex; gap:12px; align-items:center;">
-                        <div style="width:110px; flex: 0 0 110px; display:flex; align-items:center; justify-content:center;">
-                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:100px; height:80px; border-radius:8px;">
+                    <div class="card" style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                        <div style="width:90px; flex: 0 0 90px; display:flex; align-items:center; justify-content:center;">
+                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:80px; height:65px; border-radius:8px; object-fit:cover;">
                         </div>
-                        <div style="flex:1;">
-                            <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
-                            <p><strong>Año:</strong> ${v.anio}</p>
-                            <p><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
-                            <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                        <div style="flex:1; min-width:150px;">
+                            <h3 style="font-size:0.95em; margin-bottom:4px;">${v.marca} ${v.modelo} ${v.version || ''}</h3>
+                            <p style="margin:2px 0;"><strong>Año:</strong> ${v.anio} | <strong>Km:</strong> ${v.kilometraje?.toLocaleString() || 'N/A'}</p>
+                            <p style="margin:2px 0;"><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
+                            <p style="margin:2px 0;"><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                            ${esAdmin ? `
+                                <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="editarVehiculoPrompt(${v.id}, '${v.marca}', '${v.modelo}', ${v.precio || 0}, '${v.estado}')">✏️ Editar</button>
+                                    <button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="eliminarVehiculo(${v.id})">🗑️</button>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 `).join('') : '<p class="empty-message">No hay vehículos</p>';
@@ -748,16 +856,81 @@
             try {
                 const clientes = await apiCall('/api/clientes');
                 const container = document.getElementById('clientesList');
+                const esAdmin = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin');
                 
                 container.innerHTML = clientes.length ? clientes.map(c => `
                     <div class="card">
-                        <h3>${c.nombre} ${c.apellido}</h3>
-                        <p><strong>DNI:</strong> ${c.dni}</p>
-                        <p><strong>Tel:</strong> ${c.telefono || 'N/A'}</p>
+                        <h3 style="font-size:0.95em;">${c.nombre} ${c.apellido}</h3>
+                        <p style="margin:2px 0;"><strong>DNI:</strong> ${c.dni}</p>
+                        <p style="margin:2px 0;"><strong>Tel:</strong> ${c.telefono || 'N/A'}</p>
+                        <p style="margin:2px 0;"><strong>Email:</strong> ${c.email || 'N/A'}</p>
+                        ${esAdmin ? `
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="editarClientePrompt(${c.id}, '${c.nombre}', '${c.apellido}', '${c.telefono || ''}')">✏️ Editar</button>
+                                <button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="eliminarCliente(${c.id})">🗑️</button>
+                            </div>
+                        ` : ''}
                     </div>
                 `).join('') : '<p class="empty-message">No hay clientes</p>';
             } catch (e) {
                 document.getElementById('clientesList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+        
+        // Funciones de edición de vehículos y clientes
+        function editarVehiculoPrompt(id, marca, modelo, precio, estado) {
+            const nuevoPrecio = prompt(`Nuevo precio para ${marca} ${modelo} (actual: $${precio.toLocaleString()}):`, precio);
+            const nuevoEstado = prompt(`Nuevo estado (actual: ${estado}). Opciones: disponible, reservado, vendido:`, estado);
+            
+            if (nuevoPrecio === null && nuevoEstado === null) return;
+            
+            const payload = { usuario_id: currentUser?.id };
+            if (nuevoPrecio && nuevoPrecio !== String(precio)) payload.precio = Number(nuevoPrecio);
+            if (nuevoEstado && nuevoEstado !== estado) payload.estado = nuevoEstado;
+            
+            if (Object.keys(payload).length > 1) {
+                apiCall(`/api/vehiculos/${id}`, 'PUT', payload).then(res => {
+                    alert('✅ Vehículo actualizado');
+                    cargarVehiculos();
+                }).catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+        
+        function editarClientePrompt(id, nombre, apellido, telefono) {
+            const nuevoTelefono = prompt(`Nuevo teléfono para ${nombre} ${apellido} (actual: ${telefono}):`, telefono);
+            
+            if (nuevoTelefono === null) return;
+            
+            const payload = { usuario_id: currentUser?.id };
+            if (nuevoTelefono && nuevoTelefono !== telefono) payload.telefono = nuevoTelefono;
+            
+            if (Object.keys(payload).length > 1) {
+                apiCall(`/api/clientes/${id}`, 'PUT', payload).then(res => {
+                    alert('✅ Cliente actualizado');
+                    cargarClientes();
+                }).catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+        
+        async function eliminarVehiculo(id) {
+            if (!confirm('¿Eliminar este vehículo?')) return;
+            try {
+                await apiCall(`/api/vehiculos/${id}`, 'DELETE', { usuario_id: currentUser?.id });
+                alert('✅ Vehículo eliminado');
+                cargarVehiculos();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        async function eliminarCliente(id) {
+            if (!confirm('¿Eliminar este cliente?')) return;
+            try {
+                await apiCall(`/api/clientes/${id}`, 'DELETE', { usuario_id: currentUser?.id });
+                alert('✅ Cliente eliminado');
+                cargarClientes();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
             }
         }
 
@@ -906,26 +1079,110 @@
                 const usuarios = await apiCall('/api/usuarios/todos');
                 const container = document.getElementById('usuariosList');
                 
-                container.innerHTML = usuarios.map(u => `
-                    <div class="card usuario-card ${u.habilitado ? 'activo' : 'suspendido'}">
-                        <h3>${u.nombre}</h3>
-                        <p><strong>Email:</strong> ${u.email}</p>
-                        <p><strong>Rol:</strong> ${u.rol}</p>
-                        <p><strong>Estado:</strong> ${u.habilitado ? '🟢 Activo' : '🔴 Suspendido'}</p>
-                        ${!u.es_premium ? `
-                            ${u.habilitado ? 
-                                `<button class="btn btn-danger" style="margin-top:10px" onclick="suspenderUsuario(${u.id})">Suspender</button>` :
-                                `<button class="btn btn-success" style="margin-top:10px" onclick="reactivarUsuario(${u.id})">Reactivar</button>`
-                            }
-                        ` : ''}
-                        <div style="margin-top:10px; display:flex; gap:8px;">
-                            <button class="btn btn-secondary" onclick="verSesiones(${u.id})">🕒 Ver Sesiones</button>
-                            <button class="btn btn-secondary" onclick="verNavegacion(${u.id})">📍 Ver Navegación</button>
+                // Actualizar resumen
+                actualizarResumenActividad();
+                
+                container.innerHTML = usuarios.length ? usuarios.map(u => `
+                    <div class="card usuario-card ${u.habilitado ? 'activo' : 'suspendido'}" style="margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+                            <div style="flex:1; min-width:150px;">
+                                <h3 style="margin:0 0 5px 0; font-size:1em;">${u.es_premium ? '⭐ ' : ''}${u.nombre}</h3>
+                                <p style="margin:2px 0; font-size:0.85em;"><strong>Email:</strong> ${u.email}</p>
+                                <p style="margin:2px 0; font-size:0.85em;"><strong>Rol:</strong> ${u.rol}</p>
+                                <p style="margin:2px 0; font-size:0.85em;">
+                                    <strong>Estado:</strong> ${u.habilitado ? '<span style="color:#28a745">🟢 Activo</span>' : '<span style="color:#dc3545">🔴 Suspendido</span>'}
+                                </p>
+                                ${u.ultima_actividad ? `<p style="margin:2px 0; font-size:0.8em; color:#666;">📅 Última actividad: ${new Date(u.ultima_actividad).toLocaleString()}</p>` : ''}
+                                ${u.minutas_count !== undefined ? `<p style="margin:2px 0; font-size:0.85em;">📋 Minutas: <strong>${u.minutas_count || 0}</strong></p>` : ''}
+                            </div>
                         </div>
+                        ${!u.es_premium ? `
+                            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                                ${u.habilitado ? 
+                                    `<button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em; flex:1;" onclick="suspenderUsuario(${u.id})">🚫 Suspender</button>` :
+                                    `<button class="btn btn-success" style="padding:8px 12px; width:auto; font-size:0.8em; flex:1;" onclick="reactivarUsuario(${u.id})">✅ Reactivar</button>`
+                                }
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verSesiones(${u.id})">🕒 Sesiones</button>
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verNavegacion(${u.id})">📍 Navegación</button>
+                                <button class="btn btn-primary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verResumenUsuario(${u.id}, '${u.nombre}')">📊 Resumen</button>
+                            </div>
+                        ` : '<p style="font-size:0.8em; color:#667eea; margin-top:8px;">👑 Usuario Premium (Administrador Principal)</p>'}
                     </div>
-                `).join('');
+                `).join('') : '<p class="empty-message">No hay usuarios registrados</p>';
             } catch (e) {
-                document.getElementById('usuariosList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+                document.getElementById('usuariosList').innerHTML = '<p class="empty-message">Error al cargar usuarios</p>';
+            }
+        }
+        
+        async function actualizarResumenActividad() {
+            try {
+                const [usuarios, minutas, auditoria] = await Promise.all([
+                    apiCall('/api/usuarios/todos').catch(() => []),
+                    apiCall('/api/minutas').catch(() => []),
+                    apiCall('/api/auditoria').catch(() => [])
+                ]);
+                
+                const hoy = new Date().toDateString();
+                
+                // Total usuarios
+                document.getElementById('totalUsuarios').textContent = usuarios.length || 0;
+                
+                // Usuarios activos hoy (basado en última actividad)
+                const activosHoy = usuarios.filter(u => u.ultima_actividad && new Date(u.ultima_actividad).toDateString() === hoy).length;
+                document.getElementById('usuariosActivos').textContent = activosHoy;
+                
+                // Minutas de hoy
+                const minutasHoy = minutas.filter(m => m.fecha_creacion && new Date(m.fecha_creacion).toDateString() === hoy).length;
+                document.getElementById('minutasHoy').textContent = minutasHoy;
+                
+                // Acciones de hoy
+                const accionesHoy = auditoria.filter(a => {
+                    const fecha = a.fecha_dispositivo || a.fecha_accion;
+                    return fecha && new Date(fecha).toDateString() === hoy;
+                }).length;
+                document.getElementById('accionesHoy').textContent = accionesHoy;
+                
+            } catch (e) {
+                console.error('Error actualizando resumen:', e);
+            }
+        }
+        
+        async function verResumenUsuario(usuarioId, nombre) {
+            try {
+                const [sesiones, navegacion] = await Promise.all([
+                    apiCall(`/api/tracking/sesiones/${usuarioId}`).catch(() => []),
+                    apiCall(`/api/tracking/navegacion/${usuarioId}`).catch(() => [])
+                ]);
+                
+                const totalSesiones = sesiones.length;
+                const ultimaSesion = sesiones[0] ? new Date(sesiones[0].fecha_login).toLocaleString() : 'Nunca';
+                const totalNavegaciones = navegacion.length;
+                
+                // Contar secciones más visitadas
+                const seccionesCount = {};
+                navegacion.forEach(n => {
+                    seccionesCount[n.seccion_visitada] = (seccionesCount[n.seccion_visitada] || 0) + 1;
+                });
+                const topSecciones = Object.entries(seccionesCount)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([s, c]) => `${s}: ${c}`)
+                    .join(', ') || 'Sin datos';
+                
+                const html = `
+                    <div class="card" style="background:#e3f2fd;">
+                        <h3>📊 Resumen de ${nombre}</h3>
+                        <p><strong>Total sesiones:</strong> ${totalSesiones}</p>
+                        <p><strong>Última sesión:</strong> ${ultimaSesion}</p>
+                        <p><strong>Total navegaciones:</strong> ${totalNavegaciones}</p>
+                        <p><strong>Secciones más visitadas:</strong> ${topSecciones}</p>
+                    </div>
+                `;
+                
+                document.getElementById('alertasBox').style.display = 'block';
+                document.getElementById('alertasList').innerHTML = html;
+            } catch (e) {
+                alert('❌ Error al obtener resumen: ' + e.message);
             }
         }
 

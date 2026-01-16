@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#667eea">
-    <title>Concesionaria Pro</title>
+    <title>De Grazia - Automotores</title>
     <link rel="manifest" href="manifest.json">
     <style>
         * {
@@ -244,9 +244,9 @@
     <div class="container">
         <div class="header">
             <div style="display:flex; align-items:center; gap:12px; justify-content:center;">
-                <img id="brandLogo" src="/assets/logo.svg" alt="Logo" style="width:72px; height:72px; border-radius:50%; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                    <img id="brandLogo" class="brand-logo" src="/assets/logo.png" alt="De Grazia - Automotores" onerror="this.onerror=null;this.src='/assets/logo.svg'" style="border-radius:50%; width:56px; height:56px;">
                 <div>
-                    <h1 style="margin:0; font-size:1.2em">De Gracia - Automotores</h1>
+                    <h1 style="margin:0; font-size:1.2em">De Grazia - Automotores</h1>
                     <div class="user-info" id="userInfo">No conectado</div>
                 </div>
             </div>
@@ -267,7 +267,7 @@
             
             <div class="config-box">
                 <h4>⚙️ Configuración del Servidor</h4>
-                <input type="text" id="serverIP" placeholder="IP del servidor (ej: 192.168.1.100)" value="slinkily-numerous-reynalda.ngrok-free.dev">
+                <input type="text" id="serverIP" placeholder="IP del servidor (ej: 192.168.1.100)" value="concesionaria-app-production.up.railway.app">
                 <small style="color: #856404;">Ya configurado para acceso público. Solo haz clic en "Iniciar Sesión"</small>
             </div>
 
@@ -558,13 +558,14 @@
             const currentHost = window.location.hostname;
             const currentProtocol = window.location.protocol;
             
-            // Si estamos en el mismo servidor (producción), usar la misma URL
-            if (currentHost !== 'localhost' && currentHost !== '127.0.0.1' && !currentHost.startsWith('192.168')) {
+            // Si estamos en el mismo servidor (producción) y NO estamos en un WebView/file://, usar la misma URL
+            // En WebView (protocol file:) window.location.hostname suele estar vacío; en ese caso forzamos el serverIP
+            if (currentProtocol !== 'file:' && currentHost !== '' && currentHost !== 'localhost' && currentHost !== '127.0.0.1' && !currentHost.startsWith('192.168')) {
                 return `${currentProtocol}//${currentHost}`;
             }
             
-            // Si hay IP configurada manualmente
-            const serverIP = document.getElementById('serverIP').value || localStorage.getItem('serverIP') || 'localhost';
+            // Si hay IP configurada manualmente. Por defecto usar producción para APK.
+            const serverIP = document.getElementById('serverIP').value || localStorage.getItem('serverIP') || 'concesionaria-app-production.up.railway.app';
             localStorage.setItem('serverIP', serverIP);
             
             if (serverIP.includes('ngrok') || serverIP.includes('railway') || serverIP.includes('render')) {
@@ -608,9 +609,19 @@
                 headers: { 'Content-Type': 'application/json' }
             };
             if (body) options.body = JSON.stringify(body);
-            
+
             const response = await fetch(`${API_URL}${endpoint}`, options);
-            return response.json();
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            const text = await response.text();
+            if (contentType.includes('application/json')) {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    return { __parseError: true, raw: text, status: response.status, contentType };
+                }
+            }
+            // Non-JSON response — return raw text and metadata so caller can show it
+            return { __raw: text, status: response.status, contentType };
         }
 
         async function login() {
@@ -624,17 +635,28 @@
 
             try {
                 API_URL = getServerURL();
-                const result = await apiCall('/api/auth/login', 'POST', { email, password });
+                const endpoint = '/api/auth/login';
+                console.log('Login -> calling', getServerURL() + endpoint);
+                const result = await apiCall(endpoint, 'POST', { email, password });
                 
                 if (result.user) {
                     currentUser = result.user;
                     currentSessionId = result.user.sesion_id;
                     
+                    // Persist current user for app sessions
+                    try { localStorage.setItem('currentUser', JSON.stringify(currentUser)); } catch(e){}
+
                     document.getElementById('userInfo').textContent = `${currentUser.nombre} (${currentUser.rol})`;
                     showMainMenu(true);
                     showSection('dashboard');
                     
                     alert('✅ Bienvenido ' + currentUser.nombre);
+                } else if (result && result.__raw) {
+                    alert('❌ Error al iniciar sesión: servidor respondió con HTML/text (status=' + result.status + ', content-type=' + result.contentType + '):\n\n' + (result.__raw || '').slice(0,1000));
+                    console.error('Login raw response', result);
+                } else if (result && result.__parseError) {
+                    alert('❌ Error al parsear JSON del servidor (status=' + result.status + '):\n' + (result.raw || ''));
+                    console.error('Login parse error', result);
                 } else {
                     alert('❌ ' + (result.message || 'Error al iniciar sesión'));
                 }
@@ -706,8 +728,8 @@
                 
                 container.innerHTML = vehiculos.length ? vehiculos.map(v => `
                     <div class="card" style="display:flex; gap:12px; align-items:center;">
-                        <div style="width:110px; flex: 0 0 110px;">
-                            <img src="${v.imagen || '/assets/placeholder-car.png'}" alt="${v.marca} ${v.modelo}" style="width:100%; height:80px; object-fit:cover; border-radius:8px;">
+                        <div style="width:110px; flex: 0 0 110px; display:flex; align-items:center; justify-content:center;">
+                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:100px; height:80px; border-radius:8px;">
                         </div>
                         <div style="flex:1;">
                             <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
@@ -752,7 +774,7 @@
                         <p><strong>Financiamiento:</strong> ${m.financiamiento || 'Ninguno'}</p>
                         <p><strong>Reserva:</strong> $${(m.reserva_monto || 0).toLocaleString()}</p>
                         ${m.tradein_proporciona ? `<p><strong>Trade-in:</strong> ${m.tradein_datos || '-'}</p>` : ''}
-                        ${currentUser && currentUser.es_premium ? `
+                        ${currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin') ? `
                             <div style="margin-top:10px;">
                                 <button class="btn btn-danger" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
                                 <button class="btn btn-secondary" onclick="editarMinutaPrompt(${m.id})">✏️ Editar</button>
@@ -835,6 +857,11 @@
                 return;
             }
 
+            if (!currentUser || !currentUser.id) {
+                alert('⚠️ Debes iniciar sesión para crear una minuta.');
+                return;
+            }
+
             try {
                 const payload = { vehiculo_id, cliente_id, vendedor_id: currentUser?.id || null, precio_original, precio_final, observaciones,
                     financiamiento, financiamiento_anticipo, financiamiento_cuotas, financiamiento_precio,
@@ -850,6 +877,25 @@
                 }
             } catch (err) {
                 alert('❌ Error al crear minuta: ' + err.message);
+            }
+        }
+
+        async function eliminarMinuta(id) {
+            if (!confirm('¿Estás seguro de que quieres eliminar esta minuta?')) return;
+            if (!currentUser || !currentUser.id) {
+                alert('⚠️ Debes iniciar sesión para eliminar minutas');
+                return;
+            }
+            try {
+                const res = await apiCall(`/api/minutas/${id}`, 'DELETE', { usuario_id: currentUser.id });
+                if (res && res.message) {
+                    alert('✅ ' + res.message);
+                    cargarMinutas();
+                } else {
+                    alert('❌ Error: ' + (res.message || 'No se pudo eliminar minuta'));
+                }
+            } catch (e) {
+                alert('❌ Error al eliminar minuta: ' + e.message);
             }
         }
 
@@ -1083,7 +1129,21 @@
             if (savedIP) {
                 document.getElementById('serverIP').value = savedIP;
             }
-            showMainMenu(false);
+            // Restore persisted user if any
+            try {
+                const saved = localStorage.getItem('currentUser');
+                if (saved) {
+                    currentUser = JSON.parse(saved);
+                    document.getElementById('userInfo').textContent = `${currentUser.nombre} (${currentUser.rol})`;
+                    showMainMenu(true);
+                    // optionally load dashboard data
+                    showSection('dashboard');
+                } else {
+                    showMainMenu(false);
+                }
+            } catch (e) {
+                showMainMenu(false);
+            }
         });
 
         // Funciones de descarga

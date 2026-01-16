@@ -26,9 +26,9 @@ let trackingInterval = null;
       createVehiculo: (data) => call('/api/vehiculos', 'POST', data),
       createCliente: (data) => call('/api/clientes', 'POST', data),
       createMinuta: (data) => call('/api/minutas', 'POST', data),
-      deleteVehiculo: (id) => call(`/api/vehiculos/${id}`, 'DELETE'),
-      deleteCliente: (id) => call(`/api/clientes/${id}`, 'DELETE'),
-      deleteMinuta: (id) => call(`/api/minutas/${id}`, 'DELETE'),
+      deleteVehiculo: (id) => call(`/api/vehiculos/${id}`, 'DELETE', { usuario_id: currentUser?.id }),
+      deleteCliente: (id) => call(`/api/clientes/${id}`, 'DELETE', { usuario_id: currentUser?.id }),
+      deleteMinuta: (id) => call(`/api/minutas/${id}`, 'DELETE', { usuario_id: currentUser?.id }),
       getUsuariosTodos: () => call('/api/usuarios/todos'),
       suspenderUsuario: (id, motivo, mensaje, duracion, usuario_premium_id) => call(`/api/usuarios/${id}/suspender`, 'POST', { motivo, mensaje, duracion, usuario_premium_id }),
       reactivarUsuario: (id, usuario_premium_id) => call(`/api/usuarios/${id}/reactivar`, 'POST', { usuario_premium_id })
@@ -622,12 +622,10 @@ function mostrarEstadisticasAlmacenamiento() {
 
 // Función para abrir minuta profesional
 function abrirMinutaProfesional() {
-  // Guardar ID de usuario en localStorage para la minuta
-  if (currentUser) {
-    localStorage.setItem('userId', currentUser.id);
-    localStorage.setItem('userName', currentUser.nombre);
+  // Navegar a la sección de minutas y abrir el formulario
+  showSection('minutas');
+  // Si existe toggleMinutaForm, abrirlo
+  if (typeof toggleMinutaForm === 'function') {
+    toggleMinutaForm();
   }
-  
-  // Abrir minuta en nueva ventana
-  window.open('http://localhost:4000/minuta-venta.html', '_blank', 'width=1000,height=800');
 }

@@ -10,8 +10,9 @@
   <div class="container">
     <!-- Navbar -->
     <nav class="navbar">
-      <div class="navbar-brand">
-        <h1>🚗 Concesionaria Pro</h1>
+      <div class="navbar-brand" style="display:flex; align-items:center; gap:12px;">
+        <img id="brandLogo" class="brand-logo" src="/assets/logo.png" alt="De Grazia - Automotores" onerror="this.onerror=null;this.src='/assets/logo.svg'">
+        <h1>De Grazia - Automotores</h1>
       </div>
       <div class="navbar-menu">
         <button class="nav-btn" onclick="showSection('login')">Login</button>
@@ -230,9 +231,8 @@
     <!-- Minutas Section -->
     <section id="minutas" class="section">
       <div class="card">
-        <h2>Gestión de Minutas</h2>
-        <button class="btn btn-primary" onclick="toggleMinutaForm()">➕ Añadir Nueva Minuta</button>
-        <button class="btn btn-primary" onclick="abrirMinutaProfesional()" style="margin-left: 10px;">📋 Crear Minuta Profesional</button>
+        <h2>📋 Gestión de Minutas</h2>
+        <button class="btn btn-primary" onclick="toggleMinutaForm()">➕ Crear Nueva Minuta</button>
         
         <div id="minutaForm" style="display: none; margin-top: 20px;">
           <h3>Nueva Minuta</h3>

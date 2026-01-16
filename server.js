@@ -587,7 +587,7 @@ async function initTables() {
   await q(`CREATE TABLE IF NOT EXISTS minutas_detalladas (
     id INT PRIMARY KEY AUTO_INCREMENT,
     datos_completos TEXT NOT NULL,
-    estado VARCHAR(50) DEFAULT 'borrador',
+    estado VARCHAR(50) DEFAULT 'activa',
     creado_por INT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1317,6 +1317,48 @@ app.post('/api/vehiculos', async (req, res) => {
   }
 });
 
+// Actualizar vehículo (PUT)
+app.put('/api/vehiculos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { precio, estado, kilometraje, observaciones, usuario_id } = req.body;
+
+    const vehiculo = await qFirst('SELECT * FROM vehiculos WHERE id = ? AND eliminado = 0', [id]);
+    if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+
+    const updates = [];
+    const values = [];
+    
+    if (precio !== undefined) { updates.push('precio = ?'); values.push(precio); }
+    if (estado !== undefined) { updates.push('estado = ?'); values.push(estado); }
+    if (kilometraje !== undefined) { updates.push('kilometraje = ?'); values.push(kilometraje); }
+    if (observaciones !== undefined) { updates.push('observaciones = ?'); values.push(observaciones); }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ message: 'No hay campos para actualizar' });
+    }
+    
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    await q(`UPDATE vehiculos SET ${updates.join(', ')} WHERE id = ?`, values);
+
+    await registrarAuditoria(
+      usuario_id || 1,
+      'ACTUALIZACION_VEHICULO',
+      'vehiculos',
+      parseInt(id, 10),
+      vehiculo,
+      req.body
+    );
+
+    res.json({ message: 'Vehículo actualizado correctamente' });
+  } catch (error) {
+    console.error('Error al actualizar vehículo:', error);
+    res.status(500).json({ message: 'Error al actualizar vehículo' });
+  }
+});
+
 // Soft delete de vehículos
 app.delete('/api/vehiculos/:id', async (req, res) => {
   try {
@@ -1417,6 +1459,50 @@ app.post('/api/clientes', async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
+// Actualizar cliente (PUT)
+app.put('/api/clientes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, apellido, telefono, email, direccion, observaciones, usuario_id } = req.body;
+
+    const cliente = await qFirst('SELECT * FROM clientes WHERE id = ?', [id]);
+    if (!cliente) return res.status(404).json({ message: 'Cliente no encontrado' });
+
+    const updates = [];
+    const values = [];
+    
+    if (nombre !== undefined) { updates.push('nombre = ?'); values.push(nombre); }
+    if (apellido !== undefined) { updates.push('apellido = ?'); values.push(apellido); }
+    if (telefono !== undefined) { updates.push('telefono = ?'); values.push(telefono); }
+    if (email !== undefined) { updates.push('email = ?'); values.push(email); }
+    if (direccion !== undefined) { updates.push('direccion = ?'); values.push(direccion); }
+    if (observaciones !== undefined) { updates.push('observaciones = ?'); values.push(observaciones); }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ message: 'No hay campos para actualizar' });
+    }
+    
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    await q(`UPDATE clientes SET ${updates.join(', ')} WHERE id = ?`, values);
+
+    await registrarAuditoria(
+      usuario_id || 1,
+      'ACTUALIZACION_CLIENTE',
+      'clientes',
+      parseInt(id, 10),
+      cliente,
+      req.body
+    );
+
+    res.json({ message: 'Cliente actualizado correctamente' });
+  } catch (error) {
+    console.error('Error al actualizar cliente:', error);
+    res.status(500).json({ message: 'Error al actualizar cliente' });
   }
 });
 
@@ -1750,7 +1836,7 @@ app.post('/api/minutas/detallada', async (req, res) => {
       `INSERT INTO minutas_detalladas 
        (datos_completos, estado, creado_por, created_at) 
        VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-      [minutaDetallada, estado || 'borrador', usuario_id]
+      [minutaDetallada, estado || 'activa', usuario_id]
     );
 
     await registrarAuditoria(
@@ -1902,13 +1988,19 @@ app.delete('/api/minutas/:id', async (req, res) => {
 
 app.get('/api/usuarios/todos', async (req, res) => {
   try {
+    // Obtener usuarios con última actividad y conteo de minutas
     const rows = await q(
-      `SELECT id, nombre, email, rol, habilitado, es_premium, created_at, updated_at
-       FROM usuarios
-       ORDER BY created_at DESC`
+      `SELECT 
+         u.id, u.nombre, u.email, u.rol, u.habilitado, u.es_premium, u.super_admin,
+         u.created_at, u.updated_at,
+         (SELECT MAX(fecha_login) FROM tracking_sesiones WHERE usuario_id = u.id) as ultima_actividad,
+         (SELECT COUNT(*) FROM minutas WHERE vendedor_id = u.id) as minutas_count
+       FROM usuarios u
+       ORDER BY u.created_at DESC`
     );
     res.json(rows);
   } catch (error) {
+    console.error('Error en /api/usuarios/todos:', error);
     res.status(500).json({ message: 'Error al obtener usuarios' });
   }
 });

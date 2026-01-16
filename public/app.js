@@ -4,16 +4,44 @@ let currentUser = null;
 let currentSessionId = null;
 let trackingInterval = null;
 
+// URL del servidor de producción en Railway
+const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
+
 // Fallback API client: si window.api no está disponible (navegador web), usamos fetch
 (() => {
   try {
-    const BASE = (location.protocol && location.host) ? `${location.protocol}//${location.host}` : 'http://localhost:4000';
+    // Detectar si estamos en Capacitor/APK (localhost con https o file://)
+    const isCapacitor = (
+      location.protocol === 'file:' ||
+      (location.protocol === 'https:' && location.host === 'localhost') ||
+      (location.protocol === 'capacitor:') ||
+      (typeof Capacitor !== 'undefined')
+    );
+    
+    // En Capacitor/APK usar Railway, en navegador web usar el mismo host
+    let BASE;
+    if (isCapacitor) {
+      BASE = RAILWAY_URL;
+      console.log('📱 Detectado entorno Capacitor/APK - usando servidor:', BASE);
+    } else if (location.protocol && location.host && location.host !== 'localhost') {
+      BASE = `${location.protocol}//${location.host}`;
+      console.log('🌐 Detectado navegador web - usando mismo host:', BASE);
+    } else {
+      BASE = 'http://localhost:4000';
+      console.log('💻 Detectado entorno local - usando localhost:4000');
+    }
 
     const call = async (endpoint, method = 'GET', body = null) => {
       const opts = { method, headers: { 'Content-Type': 'application/json' } };
       if (body) opts.body = JSON.stringify(body);
+      console.log(`🔗 API Call: ${method} ${BASE}${endpoint}`);
       const resp = await fetch(`${BASE}${endpoint}`, opts);
-      return resp.ok ? resp.json() : Promise.reject(await resp.json());
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({ message: 'Error del servidor' }));
+        console.error('❌ API Error:', errorData);
+        throw errorData;
+      }
+      return resp.json();
     };
 
     const apiFallback = {
@@ -620,14 +648,12 @@ function mostrarEstadisticasAlmacenamiento() {
   console.log('Obteniendo estadísticas de almacenamiento...');
 }
 
-// Función para abrir minuta profesional
+// Función para crear minuta - ahora usa el formulario integrado
 function abrirMinutaProfesional() {
-  // Guardar ID de usuario en localStorage para la minuta
-  if (currentUser) {
-    localStorage.setItem('userId', currentUser.id);
-    localStorage.setItem('userName', currentUser.nombre);
+  // Navegar a la sección de minutas y abrir el formulario
+  showSection('minutas');
+  // Si existe toggleMinutaForm, abrirlo
+  if (typeof toggleMinutaForm === 'function') {
+    toggleMinutaForm();
   }
-  
-  // Abrir minuta en nueva ventana
-  window.open('http://localhost:4000/minuta-venta.html', '_blank', 'width=1000,height=800');
 }

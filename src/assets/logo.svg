@@ -10,6 +10,6 @@
     <path d="M-120 20 C -60 -40, 60 -40, 120 20" fill="none" stroke="url(#g)" stroke-width="18" stroke-linecap="round"/>
     <path d="M-110 36 C -60 0, 60 0, 110 36" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/>
   </g>
-  <text x="50%" y="320" font-family="Arial, sans-serif" font-size="36" fill="#fff" text-anchor="middle">DE GRACIA</text>
+  <text x="50%" y="320" font-family="Arial, sans-serif" font-size="36" fill="#fff" text-anchor="middle">DE GRAZIA</text>
   <text x="50%" y="355" font-family="Arial, sans-serif" font-size="18" fill="#fff" text-anchor="middle">AUTOMOTORES</text>
 </svg>
