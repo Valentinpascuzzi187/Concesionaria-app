@@ -75,9 +75,21 @@ body {
 }
 
 .container {
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
-  padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-right));
+  padding: 12px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop widths only for large screens */
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left));
+  }
 }
 
 /* Navbar */
@@ -453,9 +465,23 @@ textarea {
 /* Dashboard */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   margin-top: 2rem;
+}
+
+@media (min-width: 481px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
 }
 
 .stat-card {
@@ -479,11 +505,16 @@ textarea {
 }
 
 .stat-number {
-  font-size: 2.5rem;
+  font-size: clamp(1.2rem, 5vw, 2.5rem);
   font-weight: 700;
   margin: 0;
   color: var(--color-secondary);
-  letter-spacing: 1px;
+  letter-spacing: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  line-height: 1.2;
+  padding: 5px 0;
 }
 
 /* Vehicle Cards */

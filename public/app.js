@@ -4,6 +4,52 @@ let currentUser = null;
 let currentSessionId = null;
 let trackingInterval = null;
 
+// ============= CRITICAL: NUMBER FORMATTING UTILITY =============
+/**
+ * Formato seguro para números en UI (evita overflow)
+ * 13500000 → 13.5M
+ * 13000 → 13K
+ * 1500 → 1.5K
+ */
+function formatNumberCompact(num) {
+  if (!num || typeof num !== 'number' || num === 0) return '$0';
+  
+  const absNum = Math.abs(num);
+  let suffix = '';
+  let divisor = 1;
+  
+  if (absNum >= 1000000) {
+    divisor = 1000000;
+    suffix = 'M';
+  } else if (absNum >= 1000) {
+    divisor = 1000;
+    suffix = 'K';
+  }
+  
+  const formatted = (num / divisor).toFixed(suffix ? 1 : 0);
+  return `$${formatted}${suffix}`;
+}
+
+/**
+ * Formato de moneda estándar con separadores
+ */
+function formatCurrency(num) {
+  if (!num || typeof num !== 'number') return '$0';
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+/**
+ * Formato para números sin moneda (cantidades)
+ */
+function formatNumber(num) {
+  if (!num || typeof num !== 'number') return '0';
+  return new Intl.NumberFormat('es-AR').format(num);
+}
+
 // URL del servidor de producción en Railway
 const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
 
@@ -294,7 +340,9 @@ async function loadPagos() {
             fecha: m.created_at,
             monto: monto,
             estado: 'PAGADO',
-            cliente: m.cliente_id
+            aprobacion_estado: m.aprobacion_estado || 'pendiente',
+            cliente: m.cliente_id,
+            creado_por: m.creado_por
           });
         } else {
           totalPendiente += monto;
@@ -303,15 +351,67 @@ async function loadPagos() {
       }
     });
     
-    document.getElementById('totalPagado').textContent = '$' + totalPagado.toLocaleString('es-AR');
-    document.getElementById('totalPendiente').textContent = '$' + totalPendiente.toLocaleString('es-AR');
-    document.getElementById('minutasPagadas').textContent = minutasPagadas;
-    document.getElementById('minutasPendientes').textContent = minutasPendientes;
+    // USAR FORMATO COMPACTO para prevenir overflow
+    document.getElementById('totalPagado').textContent = formatNumberCompact(totalPagado);
+    document.getElementById('totalPendiente').textContent = formatNumberCompact(totalPendiente);
+    document.getElementById('minutasPagadas').textContent = formatNumber(minutasPagadas);
+    document.getElementById('minutasPendientes').textContent = formatNumber(minutasPendientes);
     
-    // Mostrar registros
+    // Mostrar registros con SISTEMA DE APROBACION
     const contenedor = document.getElementById('registroPagosContent');
     if (registros.length === 0) {
       contenedor.innerHTML = '<p style="text-align: center; color: #999;">No hay pagos registrados</p>';
+      return;
+    }
+    
+    let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">';
+    html += '<tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">';
+    html += '<td style="padding: 12px; text-align: left;">Minuta</td>';
+    html += '<td style="padding: 12px; text-align: left;">Fecha</td>';
+    html += '<td style="padding: 12px; text-align: right;">Monto</td>';
+    html += '<td style="padding: 12px; text-align: center;">Estado Pago</td>';
+    html += '<td style="padding: 12px; text-align: center;">Aprobación</td>';
+    if (currentUser?.es_premium) {
+      html += '<td style="padding: 12px; text-align: center;">Acciones Admin</td>';
+    }
+    html += '</tr>';
+    
+    registros.forEach(r => {
+      html += '<tr style="border-bottom: 1px solid #eee;">';
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">#${r.numero}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${new Date(r.fecha).toLocaleDateString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${formatNumberCompact(r.monto)}</td>`;
+      html += '<td style="padding: 12px; border: 1px solid #ddd;"><span style="background: #d4edda; padding: 4px 8px; border-radius: 4px; color: #155724;">✅ Pagado</span></td>';
+      
+      // APROBACIÓN: mostrar estado actual
+      let aprobacionBadge = '';
+      if (r.aprobacion_estado === 'aprobado') {
+        aprobacionBadge = '<span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">✅ APROBADO</span>';
+      } else if (r.aprobacion_estado === 'pendiente_revision') {
+        aprobacionBadge = '<span style="background: #ffc107; color: #333; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">⏱ REVISIÓN</span>';
+      } else {
+        aprobacionBadge = '<span style="background: #6c757d; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">⏳ PENDIENTE</span>';
+      }
+      html += `<td style="padding: 12px; border: 1px solid #ddd; text-align: center;">${aprobacionBadge}</td>`;
+      
+      // ACCIONES ADMIN PREMIUM
+      if (currentUser?.es_premium) {
+        html += '<td style="padding: 12px; border: 1px solid #ddd; text-align: center;">';
+        if (r.aprobacion_estado !== 'aprobado') {
+          html += `<button onclick="aprobarPago(${r.id})" style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin-right: 4px;">✅ Aprobar</button>`;
+        }
+        html += `<button onclick="rechazarPago(${r.id})" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">❌ Rechazar</button>`;
+        html += '</td>';
+      }
+      html += '</tr>';
+    });
+    
+    html += '</table>';
+    contenedor.innerHTML = html;
+  } catch (error) {
+    console.error('Error cargando pagos:', error);
+  }
+}
       return;
     }
     
@@ -361,9 +461,9 @@ async function loadReportes() {
     const vehiculosStock = vehiculos.filter(v => v.estado === 'disponible').length;
     const tasaConversion = vehiculos.length > 0 ? ((totalVentas / vehiculos.length) * 100).toFixed(2) : '0';
     
-    document.getElementById('totalVentas').textContent = totalVentas;
-    document.getElementById('ingresosTotales').textContent = '$' + ingresosTotales.toLocaleString('es-AR');
-    document.getElementById('vehiculosStock').textContent = vehiculosStock;
+    document.getElementById('totalVentas').textContent = formatNumber(totalVentas);
+    document.getElementById('ingresosTotales').textContent = formatNumberCompact(ingresosTotales);
+    document.getElementById('vehiculosStock').textContent = formatNumber(vehiculosStock);
     document.getElementById('tasaConversion').textContent = tasaConversion + '%';
     
     // Historial de ventas
@@ -1689,4 +1789,78 @@ function abrirDetalleVehiculo(vehiculoId) {
   // Cargar el vehículo en el formulario de minuta si es necesario
   document.getElementById('vehiculoSelect').value = vehiculoId;
   loadVehiculos(); // Recargar para reflejar selección
+}
+
+// ============= SISTEMA DE APROBACIÓN DE PAGOS =============
+/**
+ * SOLO ADMIN PREMIUM puede aprobar pagos
+ * Flujo:
+ * 1. Seller: Confirma que recibió pago
+ * 2. Admin User: Revisa la minuta (marca como "pendiente_revision")
+ * 3. Admin Premium: APRUEBA el pago (estado = "aprobado")
+ */
+async function aprobarPago(minutaId) {
+  if (!currentUser?.es_premium) {
+    alert('❌ Solo Admin Premium puede aprobar pagos');
+    return;
+  }
+  
+  if (!confirm('¿Aprobar este pago de forma permanente?')) return;
+  
+  try {
+    // Enviar aprobación al servidor
+    await fetch(`${getApiBase()}/api/minutas/${minutaId}/aprobar-pago`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        usuario_id: currentUser.id,
+        aprobado_por: currentUser.id,
+        aprobacion_fecha: new Date().toISOString()
+      })
+    }).then(res => res.json()).then(data => {
+      if (data.success || data.id) {
+        alert('✅ Pago APROBADO exitosamente');
+        loadPagos();
+      } else {
+        alert('❌ Error: ' + (data.message || 'No se pudo aprobar el pago'));
+      }
+    });
+  } catch (error) {
+    alert('❌ Error al aprobar pago: ' + error.message);
+  }
+}
+
+/**
+ * SOLO ADMIN PREMIUM puede rechazar pagos
+ */
+async function rechazarPago(minutaId) {
+  if (!currentUser?.es_premium) {
+    alert('❌ Solo Admin Premium puede rechazar pagos');
+    return;
+  }
+  
+  const motivo = prompt('¿Por qué rechazas este pago?');
+  if (!motivo) return;
+  
+  try {
+    await fetch(`${getApiBase()}/api/minutas/${minutaId}/rechazar-pago`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        usuario_id: currentUser.id,
+        motivo: motivo,
+        rechazado_por: currentUser.id,
+        rechazo_fecha: new Date().toISOString()
+      })
+    }).then(res => res.json()).then(data => {
+      if (data.success || data.id) {
+        alert('✅ Pago RECHAZADO. Motivo registrado');
+        loadPagos();
+      } else {
+        alert('❌ Error: ' + (data.message || 'No se pudo rechazar el pago'));
+      }
+    });
+  } catch (error) {
+    alert('❌ Error al rechazar pago: ' + error.message);
+  }
 }
