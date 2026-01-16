@@ -1,6 +1,6 @@
 {
   "appId": "com.concesionaria.app",
-  "appName": "Concesionaria Pro",
+  "appName": "De Grazia - Automotores",
   "webDir": "public",
   "server": {
     "androidScheme": "https",
