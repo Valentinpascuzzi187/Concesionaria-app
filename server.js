@@ -41,18 +41,19 @@ app.get('/src/style.css', (req, res) => res.sendFile(path.join(__dirname, 'src',
 // Ruta raíz actualizada
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
 
-// Versión actualizada - v2.4.1 - Fix eliminación clientes - 2026-01-16
-console.log('🚀 Concesionaria App v2.4.1 - Fix eliminación clientes - FORCE UPDATE');
+// Versión actualizada - v2.5.0 - Minuta Profesional completa - 2026-01-16
+console.log('🚀 Concesionaria App v2.5.0 - Planilla Minuta Profesional - FORCE UPDATE');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    version: '2.4.1',
+    version: '2.5.0',
     timestamp: new Date().toISOString(),
     features: {
       pantalla_inicial: 'login',
-      minutas_en_menu: true,
+      minuta_profesional: true,
+      planilla_completa: true,
       eliminacion_clientes_fix: true,
       login_corregido: true,
       api_actualizada: true

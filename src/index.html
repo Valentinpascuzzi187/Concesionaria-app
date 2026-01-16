@@ -232,10 +232,14 @@
     <section id="minutas" class="section">
       <div class="card">
         <h2>📋 Gestión de Minutas</h2>
-        <button class="btn btn-primary" onclick="toggleMinutaForm()">➕ Crear Nueva Minuta</button>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+          <button class="btn btn-primary" onclick="toggleMinutaForm()">➕ Minuta Rápida</button>
+          <button class="btn btn-success" onclick="toggleMinutaProfesional()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">📄 Planilla de Minuta Profesional</button>
+        </div>
         
+        <!-- Formulario Minuta Rápida -->
         <div id="minutaForm" style="display: none; margin-top: 20px;">
-          <h3>Nueva Minuta</h3>
+          <h3>Nueva Minuta Rápida</h3>
           <form id="minutaFormElement">
             <div class="form-row">
               <div class="form-group">
@@ -270,8 +274,353 @@
           </form>
         </div>
 
+        <!-- Formulario Minuta Profesional Completo -->
+        <div id="minutaProfesionalForm" style="display: none; margin-top: 20px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); padding: 30px; border-radius: 15px; border: 2px solid #667eea;">
+          
+          <!-- Encabezado con Logo -->
+          <div style="text-align: center; margin-bottom: 25px; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <img src="assets/logo.png" alt="De Grazia - Automotores" style="max-width: 120px; margin-bottom: 10px;" onerror="this.style.display='none'">
+            <h2 style="margin: 0; color: #333; font-size: 1.8em;">DE GRAZIA - AUTOMOTORES</h2>
+            <h3 style="margin: 10px 0 0 0; color: #667eea; font-size: 1.3em;">📄 MINUTA DE VENTA DE VEHÍCULO / MOTO</h3>
+            <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">Documento formal de operación comercial</p>
+          </div>
+
+          <form id="minutaProfesionalFormElement">
+            
+            <!-- A. Datos Generales -->
+            <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 8px;">📍 A. DATOS GENERALES</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Lugar:</label>
+                  <input type="text" id="mpLugar" placeholder="Ciudad, Provincia" value="Córdoba, Argentina">
+                </div>
+                <div class="form-group">
+                  <label>Fecha:</label>
+                  <input type="date" id="mpFecha">
+                </div>
+                <div class="form-group">
+                  <label>Nº de Minuta:</label>
+                  <input type="text" id="mpNumero" readonly placeholder="Se genera automáticamente">
+                </div>
+              </div>
+            </div>
+
+            <!-- B. Datos del Comprador -->
+            <div style="background: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 8px;">👤 B. DATOS DEL COMPRADOR</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Seleccionar Cliente Existente:</label>
+                  <select id="mpClienteSelect" onchange="cargarDatosCliente()">
+                    <option value="">-- Seleccionar o completar manualmente --</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre / Razón Social: *</label>
+                  <input type="text" id="mpCompradorNombre" required placeholder="Nombre completo o razón social">
+                </div>
+                <div class="form-group">
+                  <label>DNI / CUIT: *</label>
+                  <input type="text" id="mpCompradorDni" required placeholder="12.345.678">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Domicilio:</label>
+                  <input type="text" id="mpCompradorDomicilio" placeholder="Calle, Número, Ciudad">
+                </div>
+                <div class="form-group">
+                  <label>Teléfono:</label>
+                  <input type="tel" id="mpCompradorTelefono" placeholder="11-2233-4455">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="mpCompradorEmail" placeholder="email@ejemplo.com">
+              </div>
+            </div>
+
+            <!-- C. Datos del Vendedor -->
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #388e3c; border-bottom: 2px solid #388e3c; padding-bottom: 8px;">🏪 C. DATOS DEL VENDEDOR</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre del Vendedor: *</label>
+                  <input type="text" id="mpVendedorNombre" required placeholder="Nombre del vendedor">
+                </div>
+                <div class="form-group">
+                  <label>Concesionaria:</label>
+                  <input type="text" id="mpConcesionaria" value="De Grazia - Automotores" readonly>
+                </div>
+              </div>
+            </div>
+
+            <!-- D. Datos del Vehículo/Moto -->
+            <div style="background: #fff3e0; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #f57c00; border-bottom: 2px solid #f57c00; padding-bottom: 8px;">🚗 D. DATOS DEL VEHÍCULO / MOTO</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Seleccionar del Stock:</label>
+                  <select id="mpVehiculoSelect" onchange="cargarDatosVehiculo()">
+                    <option value="">-- Seleccionar o completar manualmente --</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo:</label>
+                  <select id="mpVehiculoTipo">
+                    <option value="auto">Auto</option>
+                    <option value="moto">Moto</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Condición:</label>
+                  <select id="mpVehiculoCondicion">
+                    <option value="0km">0 km</option>
+                    <option value="usado">Usado</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Marca: *</label>
+                  <input type="text" id="mpVehiculoMarca" required placeholder="Toyota, Honda...">
+                </div>
+                <div class="form-group">
+                  <label>Modelo: *</label>
+                  <input type="text" id="mpVehiculoModelo" required placeholder="Corolla, Civic...">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Año: *</label>
+                  <input type="number" id="mpVehiculoAnio" required placeholder="2024">
+                </div>
+                <div class="form-group">
+                  <label>Dominio (Patente):</label>
+                  <input type="text" id="mpVehiculoDominio" placeholder="ABC 123">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Número de Motor:</label>
+                  <input type="text" id="mpVehiculoMotor" placeholder="Nro. Motor">
+                </div>
+                <div class="form-group">
+                  <label>Número de Chasis:</label>
+                  <input type="text" id="mpVehiculoChasis" placeholder="Nro. Chasis">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Color:</label>
+                <input type="text" id="mpVehiculoColor" placeholder="Color del vehículo">
+              </div>
+            </div>
+
+            <!-- E. Condiciones de la Operación -->
+            <div style="background: #fce4ec; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #c2185b; border-bottom: 2px solid #c2185b; padding-bottom: 8px;">💳 E. CONDICIONES DE LA OPERACIÓN</h4>
+              
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondContado" onchange="toggleCondicionCampos()"> 💵 Contado efectivo
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondReserva" onchange="toggleCondicionCampos()"> 📝 Reserva
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondAnticipo" onchange="toggleCondicionCampos()"> 💰 Anticipo + Saldo
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondCredito" onchange="toggleCondicionCampos()"> 🏦 Crédito interno
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondFinanciacion" onchange="toggleCondicionCampos()"> 📊 Financiación
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondTarjeta" onchange="toggleCondicionCampos()"> 💳 Tarjeta de crédito
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondPermuta" onchange="toggleCondicionCampos()"> 🔄 Permuta
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s;">
+                  <input type="checkbox" id="mpCondOtro" onchange="toggleCondicionCampos()"> ➕ Otro
+                </label>
+              </div>
+
+              <!-- Campos condicionales -->
+              <div id="mpCamposReserva" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">📝 Datos de Reserva</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto de Reserva ($):</label>
+                    <input type="number" id="mpReservaMonto" placeholder="1000000" onchange="calcularSaldos()">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposAnticipo" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">💰 Datos de Anticipo</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto Anticipo ($):</label>
+                    <input type="number" id="mpAnticipoMonto" placeholder="5000000" onchange="calcularSaldos()">
+                  </div>
+                  <div class="form-group">
+                    <label>Saldo Pendiente ($):</label>
+                    <input type="number" id="mpSaldoPendiente" readonly style="background: #f0f0f0;">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposFinanciacion" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">📊 Datos de Financiación</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Financiera:</label>
+                    <input type="text" id="mpFinanciera" placeholder="Nombre de la financiera">
+                  </div>
+                  <div class="form-group">
+                    <label>Cantidad de Cuotas:</label>
+                    <input type="number" id="mpFinCuotas" placeholder="12, 24, 36...">
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto por Cuota ($):</label>
+                    <input type="number" id="mpFinMontoCuota" placeholder="Monto mensual">
+                  </div>
+                  <div class="form-group">
+                    <label>Total Financiado ($):</label>
+                    <input type="number" id="mpFinTotal" readonly style="background: #f0f0f0;">
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposTarjeta" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">💳 Datos de Tarjeta</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Tarjeta:</label>
+                    <select id="mpTarjetaTipo">
+                      <option value="">Seleccionar...</option>
+                      <option value="visa">Visa</option>
+                      <option value="mastercard">Mastercard</option>
+                      <option value="amex">American Express</option>
+                      <option value="otra">Otra</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Cuotas:</label>
+                    <select id="mpTarjetaCuotas">
+                      <option value="1">1 cuota</option>
+                      <option value="3">3 cuotas</option>
+                      <option value="6">6 cuotas</option>
+                      <option value="12">12 cuotas</option>
+                      <option value="18">18 cuotas</option>
+                      <option value="24">24 cuotas</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div id="mpCamposPermuta" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">🔄 Vehículo en Parte de Pago</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Marca/Modelo del vehículo entregado:</label>
+                    <input type="text" id="mpPermutaVehiculo" placeholder="Ej: Toyota Corolla 2015">
+                  </div>
+                  <div class="form-group">
+                    <label>Valor tomado ($):</label>
+                    <input type="number" id="mpPermutaValor" placeholder="Valor del vehículo" onchange="calcularSaldos()">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Dominio del vehículo entregado:</label>
+                  <input type="text" id="mpPermutaDominio" placeholder="Patente">
+                </div>
+              </div>
+
+              <div id="mpCamposOtro" style="display: none; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #666;">➕ Otra forma de pago</h5>
+                <div class="form-group">
+                  <label>Especificar:</label>
+                  <textarea id="mpOtroDetalle" rows="2" placeholder="Describir forma de pago..."></textarea>
+                </div>
+              </div>
+
+              <!-- Precio Total -->
+              <div style="background: white; padding: 20px; border-radius: 8px; border: 3px solid #667eea;">
+                <h5 style="margin: 0 0 15px 0; color: #667eea;">💰 RESUMEN DE LA OPERACIÓN</h5>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Precio de Lista ($):</label>
+                    <input type="number" id="mpPrecioLista" placeholder="Precio original" onchange="calcularSaldos()">
+                  </div>
+                  <div class="form-group">
+                    <label>Precio Final de Venta ($): *</label>
+                    <input type="number" id="mpPrecioFinal" required placeholder="Precio acordado" style="font-size: 1.2em; font-weight: bold;" onchange="calcularSaldos()">
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>A Pagar / Saldo Final ($):</label>
+                    <input type="number" id="mpSaldoFinal" readonly style="background: #e8f5e9; font-size: 1.3em; font-weight: bold; color: #2e7d32;">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- F. Observaciones -->
+            <div style="background: #f3e5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #7b1fa2; border-bottom: 2px solid #7b1fa2; padding-bottom: 8px;">📝 F. OBSERVACIONES</h4>
+              <div class="form-group">
+                <textarea id="mpObservaciones" rows="4" placeholder="Aclaraciones especiales de la operación, condiciones particulares, compromisos, etc." style="width: 100%;"></textarea>
+              </div>
+            </div>
+
+            <!-- G. Firmas -->
+            <div style="background: #efebe9; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+              <h4 style="margin: 0 0 15px 0; color: #5d4037; border-bottom: 2px solid #5d4037; padding-bottom: 8px;">✍️ G. FIRMAS</h4>
+              <div class="form-row">
+                <div class="form-group" style="text-align: center;">
+                  <label>Firma del Vendedor:</label>
+                  <div style="border: 2px dashed #999; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: white; margin-top: 5px;">
+                    <span style="color: #999;">Espacio para firma</span>
+                  </div>
+                  <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #666;">_____________________________</p>
+                  <p style="margin: 0; font-size: 0.85em; color: #999;">Firma y Aclaración</p>
+                </div>
+                <div class="form-group" style="text-align: center;">
+                  <label>Firma del Comprador:</label>
+                  <div style="border: 2px dashed #999; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: white; margin-top: 5px;">
+                    <span style="color: #999;">Espacio para firma</span>
+                  </div>
+                  <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #666;">_____________________________</p>
+                  <p style="margin: 0; font-size: 0.85em; color: #999;">Firma y Aclaración</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; padding: 20px; background: white; border-radius: 10px;">
+              <button type="button" class="btn btn-secondary" onclick="toggleMinutaProfesional()">❌ Cancelar</button>
+              <button type="button" class="btn btn-info" onclick="guardarBorradorMinuta()">💾 Guardar Borrador</button>
+              <button type="submit" class="btn btn-success" style="font-size: 1.1em; padding: 15px 30px;">✅ Confirmar y Guardar Minuta</button>
+              <button type="button" class="btn btn-primary" onclick="imprimirMinuta()" style="background: #333;">🖨️ Imprimir / PDF</button>
+            </div>
+            
+            <div id="minutaProfesionalMessage" class="message" style="margin-top: 15px;"></div>
+          </form>
+        </div>
+
         <div id="minutasList" style="margin-top: 30px;">
-          <h3>Minutas Activas</h3>
+          <h3>Minutas Registradas</h3>
           <div id="minutasContent"></div>
         </div>
       </div>

@@ -772,8 +772,421 @@ function mostrarEstadisticasAlmacenamiento() {
 function abrirMinutaProfesional() {
   // Navegar a la sección de minutas y abrir el formulario
   showSection('minutas');
-  // Si existe toggleMinutaForm, abrirlo
-  if (typeof toggleMinutaForm === 'function') {
-    toggleMinutaForm();
+  // Si existe toggleMinutaProfesional, abrirlo
+  if (typeof toggleMinutaProfesional === 'function') {
+    toggleMinutaProfesional();
   }
 }
+
+// ============================================
+// MINUTA PROFESIONAL - PLANILLA COMPLETA
+// ============================================
+
+// Toggle formulario de minuta profesional
+function toggleMinutaProfesional() {
+  const form = document.getElementById('minutaProfesionalForm');
+  const formRapido = document.getElementById('minutaForm');
+  
+  // Ocultar formulario rápido si está abierto
+  if (formRapido) formRapido.style.display = 'none';
+  
+  // Toggle formulario profesional
+  if (form.style.display === 'none' || form.style.display === '') {
+    form.style.display = 'block';
+    inicializarMinutaProfesional();
+  } else {
+    form.style.display = 'none';
+  }
+}
+
+// Inicializar formulario de minuta profesional
+async function inicializarMinutaProfesional() {
+  // Establecer fecha actual
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('mpFecha').value = hoy;
+  
+  // Generar número de minuta temporal
+  const numMinuta = 'MP-' + Date.now().toString().slice(-6);
+  document.getElementById('mpNumero').value = numMinuta;
+  
+  // Precargar nombre del vendedor si está logueado
+  if (currentUser) {
+    document.getElementById('mpVendedorNombre').value = currentUser.nombre || '';
+  }
+  
+  // Cargar clientes y vehículos en los selects
+  try {
+    const vehiculos = await window.api.getVehiculos();
+    const clientes = await window.api.getClientes();
+    
+    // Filtrar vehículos disponibles
+    const vehiculosDisponibles = vehiculos.filter(v => v.estado === 'disponible');
+    
+    // Llenar select de vehículos
+    const vehSelect = document.getElementById('mpVehiculoSelect');
+    if (vehSelect) {
+      vehSelect.innerHTML = '<option value="">-- Seleccionar o completar manualmente --</option>' +
+        vehiculosDisponibles.map(v => `
+          <option value="${v.id}" 
+                  data-marca="${v.marca}" 
+                  data-modelo="${v.modelo}" 
+                  data-anio="${v.anio}"
+                  data-precio="${v.precio}"
+                  data-dominio="${v.dominio || ''}"
+                  data-tipo="${v.tipo || 'auto'}"
+                  data-condicion="${v.condicion || 'usado'}">
+            ${v.marca} ${v.modelo} (${v.anio}) - $${Number(v.precio).toLocaleString()}
+          </option>
+        `).join('');
+    }
+    
+    // Llenar select de clientes
+    const cliSelect = document.getElementById('mpClienteSelect');
+    if (cliSelect) {
+      cliSelect.innerHTML = '<option value="">-- Seleccionar o completar manualmente --</option>' +
+        clientes.map(c => `
+          <option value="${c.id}"
+                  data-nombre="${c.nombre} ${c.apellido}"
+                  data-dni="${c.dni}"
+                  data-telefono="${c.telefono || ''}"
+                  data-email="${c.email || ''}"
+                  data-direccion="${c.direccion || ''}">
+            ${c.nombre} ${c.apellido} - DNI: ${c.dni}
+          </option>
+        `).join('');
+    }
+  } catch (error) {
+    console.error('Error cargando datos para minuta profesional:', error);
+  }
+}
+
+// Cargar datos del cliente seleccionado
+function cargarDatosCliente() {
+  const select = document.getElementById('mpClienteSelect');
+  const option = select.options[select.selectedIndex];
+  
+  if (option && option.value) {
+    document.getElementById('mpCompradorNombre').value = option.dataset.nombre || '';
+    document.getElementById('mpCompradorDni').value = option.dataset.dni || '';
+    document.getElementById('mpCompradorTelefono').value = option.dataset.telefono || '';
+    document.getElementById('mpCompradorEmail').value = option.dataset.email || '';
+    document.getElementById('mpCompradorDomicilio').value = option.dataset.direccion || '';
+  }
+}
+
+// Cargar datos del vehículo seleccionado
+function cargarDatosVehiculo() {
+  const select = document.getElementById('mpVehiculoSelect');
+  const option = select.options[select.selectedIndex];
+  
+  if (option && option.value) {
+    document.getElementById('mpVehiculoMarca').value = option.dataset.marca || '';
+    document.getElementById('mpVehiculoModelo').value = option.dataset.modelo || '';
+    document.getElementById('mpVehiculoAnio').value = option.dataset.anio || '';
+    document.getElementById('mpVehiculoDominio').value = option.dataset.dominio || '';
+    document.getElementById('mpVehiculoTipo').value = option.dataset.tipo || 'auto';
+    document.getElementById('mpVehiculoCondicion').value = option.dataset.condicion || 'usado';
+    document.getElementById('mpPrecioLista').value = option.dataset.precio || '';
+    document.getElementById('mpPrecioFinal').value = option.dataset.precio || '';
+    calcularSaldos();
+  }
+}
+
+// Toggle campos condicionales según opciones seleccionadas
+function toggleCondicionCampos() {
+  // Reserva
+  document.getElementById('mpCamposReserva').style.display = 
+    document.getElementById('mpCondReserva').checked ? 'block' : 'none';
+  
+  // Anticipo
+  document.getElementById('mpCamposAnticipo').style.display = 
+    document.getElementById('mpCondAnticipo').checked ? 'block' : 'none';
+  
+  // Financiación
+  document.getElementById('mpCamposFinanciacion').style.display = 
+    document.getElementById('mpCondFinanciacion').checked ? 'block' : 'none';
+  
+  // Tarjeta
+  document.getElementById('mpCamposTarjeta').style.display = 
+    document.getElementById('mpCondTarjeta').checked ? 'block' : 'none';
+  
+  // Permuta
+  document.getElementById('mpCamposPermuta').style.display = 
+    document.getElementById('mpCondPermuta').checked ? 'block' : 'none';
+  
+  // Otro
+  document.getElementById('mpCamposOtro').style.display = 
+    document.getElementById('mpCondOtro').checked ? 'block' : 'none';
+  
+  calcularSaldos();
+}
+
+// Calcular saldos automáticamente
+function calcularSaldos() {
+  const precioFinal = parseFloat(document.getElementById('mpPrecioFinal').value) || 0;
+  const anticipo = parseFloat(document.getElementById('mpAnticipoMonto').value) || 0;
+  const reserva = parseFloat(document.getElementById('mpReservaMonto').value) || 0;
+  const permutaValor = parseFloat(document.getElementById('mpPermutaValor').value) || 0;
+  const cuotas = parseFloat(document.getElementById('mpFinCuotas').value) || 0;
+  const montoCuota = parseFloat(document.getElementById('mpFinMontoCuota').value) || 0;
+  
+  // Calcular saldo pendiente (anticipo)
+  const saldoPendiente = precioFinal - anticipo;
+  document.getElementById('mpSaldoPendiente').value = saldoPendiente > 0 ? saldoPendiente : 0;
+  
+  // Calcular total financiado
+  if (cuotas > 0 && montoCuota > 0) {
+    document.getElementById('mpFinTotal').value = cuotas * montoCuota;
+  }
+  
+  // Calcular saldo final (considerando reserva, anticipo y permuta)
+  let saldoFinal = precioFinal - reserva - anticipo - permutaValor;
+  document.getElementById('mpSaldoFinal').value = saldoFinal > 0 ? saldoFinal : 0;
+}
+
+// Guardar borrador de minuta
+function guardarBorradorMinuta() {
+  const datosMinuta = recopilarDatosMinutaProfesional();
+  localStorage.setItem('minuta_borrador', JSON.stringify(datosMinuta));
+  alert('💾 Borrador guardado correctamente. Puedes continuar después.');
+}
+
+// Recopilar todos los datos del formulario
+function recopilarDatosMinutaProfesional() {
+  return {
+    // Datos generales
+    lugar: document.getElementById('mpLugar').value,
+    fecha: document.getElementById('mpFecha').value,
+    numero: document.getElementById('mpNumero').value,
+    
+    // Comprador
+    comprador: {
+      id: document.getElementById('mpClienteSelect').value,
+      nombre: document.getElementById('mpCompradorNombre').value,
+      dni: document.getElementById('mpCompradorDni').value,
+      domicilio: document.getElementById('mpCompradorDomicilio').value,
+      telefono: document.getElementById('mpCompradorTelefono').value,
+      email: document.getElementById('mpCompradorEmail').value
+    },
+    
+    // Vendedor
+    vendedor: {
+      nombre: document.getElementById('mpVendedorNombre').value,
+      concesionaria: document.getElementById('mpConcesionaria').value
+    },
+    
+    // Vehículo
+    vehiculo: {
+      id: document.getElementById('mpVehiculoSelect').value,
+      tipo: document.getElementById('mpVehiculoTipo').value,
+      condicion: document.getElementById('mpVehiculoCondicion').value,
+      marca: document.getElementById('mpVehiculoMarca').value,
+      modelo: document.getElementById('mpVehiculoModelo').value,
+      anio: document.getElementById('mpVehiculoAnio').value,
+      dominio: document.getElementById('mpVehiculoDominio').value,
+      motor: document.getElementById('mpVehiculoMotor').value,
+      chasis: document.getElementById('mpVehiculoChasis').value,
+      color: document.getElementById('mpVehiculoColor').value
+    },
+    
+    // Condiciones de pago
+    condiciones: {
+      contado: document.getElementById('mpCondContado').checked,
+      reserva: document.getElementById('mpCondReserva').checked,
+      anticipo: document.getElementById('mpCondAnticipo').checked,
+      credito: document.getElementById('mpCondCredito').checked,
+      financiacion: document.getElementById('mpCondFinanciacion').checked,
+      tarjeta: document.getElementById('mpCondTarjeta').checked,
+      permuta: document.getElementById('mpCondPermuta').checked,
+      otro: document.getElementById('mpCondOtro').checked
+    },
+    
+    // Montos
+    montos: {
+      precioLista: document.getElementById('mpPrecioLista').value,
+      precioFinal: document.getElementById('mpPrecioFinal').value,
+      reserva: document.getElementById('mpReservaMonto').value,
+      anticipo: document.getElementById('mpAnticipoMonto').value,
+      saldoPendiente: document.getElementById('mpSaldoPendiente').value,
+      saldoFinal: document.getElementById('mpSaldoFinal').value
+    },
+    
+    // Financiación
+    financiacion: {
+      financiera: document.getElementById('mpFinanciera').value,
+      cuotas: document.getElementById('mpFinCuotas').value,
+      montoCuota: document.getElementById('mpFinMontoCuota').value,
+      total: document.getElementById('mpFinTotal').value
+    },
+    
+    // Tarjeta
+    tarjeta: {
+      tipo: document.getElementById('mpTarjetaTipo').value,
+      cuotas: document.getElementById('mpTarjetaCuotas').value
+    },
+    
+    // Permuta
+    permuta: {
+      vehiculo: document.getElementById('mpPermutaVehiculo').value,
+      valor: document.getElementById('mpPermutaValor').value,
+      dominio: document.getElementById('mpPermutaDominio').value
+    },
+    
+    // Otro
+    otroDetalle: document.getElementById('mpOtroDetalle').value,
+    
+    // Observaciones
+    observaciones: document.getElementById('mpObservaciones').value,
+    
+    // Metadata
+    creado_por: currentUser ? currentUser.id : null,
+    fecha_creacion: new Date().toISOString()
+  };
+}
+
+// Imprimir minuta
+function imprimirMinuta() {
+  const datos = recopilarDatosMinutaProfesional();
+  
+  // Crear ventana de impresión
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Minuta de Venta - ${datos.numero}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+        .header h1 { margin: 0; color: #333; }
+        .header h2 { margin: 10px 0 0 0; color: #666; }
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .section h3 { margin: 0 0 15px 0; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .row { display: flex; margin-bottom: 8px; }
+        .label { font-weight: bold; width: 180px; color: #555; }
+        .value { flex: 1; }
+        .total { font-size: 1.3em; font-weight: bold; color: #2e7d32; }
+        .firmas { display: flex; justify-content: space-around; margin-top: 50px; padding-top: 30px; }
+        .firma { text-align: center; width: 200px; }
+        .firma-linea { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+        @media print { body { padding: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>DE GRAZIA - AUTOMOTORES</h1>
+        <h2>MINUTA DE VENTA DE VEHÍCULO</h2>
+        <p>Nº: ${datos.numero} | Fecha: ${datos.fecha} | Lugar: ${datos.lugar}</p>
+      </div>
+      
+      <div class="section">
+        <h3>DATOS DEL COMPRADOR</h3>
+        <div class="row"><span class="label">Nombre:</span><span class="value">${datos.comprador.nombre}</span></div>
+        <div class="row"><span class="label">DNI/CUIT:</span><span class="value">${datos.comprador.dni}</span></div>
+        <div class="row"><span class="label">Domicilio:</span><span class="value">${datos.comprador.domicilio}</span></div>
+        <div class="row"><span class="label">Teléfono:</span><span class="value">${datos.comprador.telefono}</span></div>
+        <div class="row"><span class="label">Email:</span><span class="value">${datos.comprador.email}</span></div>
+      </div>
+      
+      <div class="section">
+        <h3>DATOS DEL VEHÍCULO</h3>
+        <div class="row"><span class="label">Tipo:</span><span class="value">${datos.vehiculo.tipo}</span></div>
+        <div class="row"><span class="label">Marca/Modelo:</span><span class="value">${datos.vehiculo.marca} ${datos.vehiculo.modelo}</span></div>
+        <div class="row"><span class="label">Año:</span><span class="value">${datos.vehiculo.anio}</span></div>
+        <div class="row"><span class="label">Dominio:</span><span class="value">${datos.vehiculo.dominio || 'N/A'}</span></div>
+        <div class="row"><span class="label">Nº Motor:</span><span class="value">${datos.vehiculo.motor || 'N/A'}</span></div>
+        <div class="row"><span class="label">Nº Chasis:</span><span class="value">${datos.vehiculo.chasis || 'N/A'}</span></div>
+      </div>
+      
+      <div class="section">
+        <h3>CONDICIONES DE LA OPERACIÓN</h3>
+        <div class="row"><span class="label">Precio Final:</span><span class="value total">$${Number(datos.montos.precioFinal).toLocaleString()}</span></div>
+        ${datos.condiciones.reserva ? `<div class="row"><span class="label">Reserva:</span><span class="value">$${Number(datos.montos.reserva).toLocaleString()}</span></div>` : ''}
+        ${datos.condiciones.anticipo ? `<div class="row"><span class="label">Anticipo:</span><span class="value">$${Number(datos.montos.anticipo).toLocaleString()}</span></div>` : ''}
+        ${datos.condiciones.permuta ? `<div class="row"><span class="label">Permuta:</span><span class="value">${datos.permuta.vehiculo} - $${Number(datos.permuta.valor).toLocaleString()}</span></div>` : ''}
+        <div class="row"><span class="label">Saldo a Pagar:</span><span class="value total">$${Number(datos.montos.saldoFinal).toLocaleString()}</span></div>
+      </div>
+      
+      ${datos.observaciones ? `
+      <div class="section">
+        <h3>OBSERVACIONES</h3>
+        <p>${datos.observaciones}</p>
+      </div>
+      ` : ''}
+      
+      <div class="firmas">
+        <div class="firma">
+          <div class="firma-linea">Firma Vendedor</div>
+          <p>${datos.vendedor.nombre}</p>
+        </div>
+        <div class="firma">
+          <div class="firma-linea">Firma Comprador</div>
+          <p>${datos.comprador.nombre}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+
+// Submit formulario minuta profesional
+document.getElementById('minutaProfesionalFormElement')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const datos = recopilarDatosMinutaProfesional();
+  const messageDiv = document.getElementById('minutaProfesionalMessage');
+  
+  // Validaciones básicas
+  if (!datos.comprador.nombre || !datos.comprador.dni) {
+    messageDiv.className = 'message error';
+    messageDiv.textContent = '❌ Debe completar los datos del comprador (nombre y DNI)';
+    return;
+  }
+  
+  if (!datos.vehiculo.marca || !datos.vehiculo.modelo || !datos.vehiculo.anio) {
+    messageDiv.className = 'message error';
+    messageDiv.textContent = '❌ Debe completar los datos del vehículo (marca, modelo y año)';
+    return;
+  }
+  
+  if (!datos.montos.precioFinal) {
+    messageDiv.className = 'message error';
+    messageDiv.textContent = '❌ Debe ingresar el precio final de venta';
+    return;
+  }
+  
+  try {
+    // Preparar datos para enviar al servidor
+    const minutaData = {
+      vehiculo_id: datos.vehiculo.id || null,
+      cliente_id: datos.comprador.id || null,
+      vendedor_id: currentUser ? currentUser.id : null,
+      precio_original: parseFloat(datos.montos.precioLista) || 0,
+      precio_final: parseFloat(datos.montos.precioFinal) || 0,
+      observaciones: JSON.stringify(datos), // Guardamos todos los datos como JSON
+      estado: 'activa'
+    };
+    
+    const response = await window.api.createMinuta(minutaData);
+    
+    messageDiv.className = 'message success';
+    messageDiv.textContent = '✅ Minuta creada correctamente. Nº: ' + datos.numero;
+    
+    // Limpiar borrador si existe
+    localStorage.removeItem('minuta_borrador');
+    
+    // Recargar lista de minutas
+    loadMinutas();
+    
+    // Cerrar formulario después de 2 segundos
+    setTimeout(() => {
+      toggleMinutaProfesional();
+    }, 2000);
+    
+  } catch (error) {
+    messageDiv.className = 'message error';
+    messageDiv.textContent = '❌ Error al crear minuta: ' + (error.message || 'Error desconocido');
+  }
+});
