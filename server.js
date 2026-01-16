@@ -41,17 +41,19 @@ app.get('/src/style.css', (req, res) => res.sendFile(path.join(__dirname, 'src',
 // Ruta raíz actualizada
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'src', 'index.html')));
 
-// Versión actualizada - Minuta Profesional v2.1 - Force Update Railway - 2025-01-15
-console.log('🚀 Concesionaria App v2.1 - Minuta Profesional Activa - FORCE UPDATE');
+// Versión actualizada - v2.4.1 - Fix eliminación clientes - 2026-01-16
+console.log('🚀 Concesionaria App v2.4.1 - Fix eliminación clientes - FORCE UPDATE');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    version: '2.1.0',
+    version: '2.4.1',
     timestamp: new Date().toISOString(),
     features: {
-      minuta_profesional: true,
+      pantalla_inicial: 'login',
+      minutas_en_menu: true,
+      eliminacion_clientes_fix: true,
       login_corregido: true,
       api_actualizada: true
     }
@@ -1415,7 +1417,7 @@ app.post('/api/vehiculos/:id/imagen', async (req, res) => {
 
 app.get('/api/clientes', async (req, res) => {
   try {
-    const rows = await q('SELECT * FROM clientes ORDER BY created_at DESC');
+    const rows = await q('SELECT * FROM clientes WHERE eliminado = 0 OR eliminado IS NULL ORDER BY created_at DESC');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: 'Error al obtener clientes' });
@@ -1944,7 +1946,14 @@ app.delete('/api/clientes/:id', async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos para eliminar clientes' });
     }
 
-    await q('UPDATE clientes SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    // Verificar que el cliente existe
+    const cliente = await qFirst('SELECT * FROM clientes WHERE id = ? AND (eliminado = 0 OR eliminado IS NULL)', [id]);
+    if (!cliente) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    await q('UPDATE clientes SET eliminado = 1, eliminado_por = ?, fecha_eliminacion = NOW() WHERE id = ?', [usuario_id, id]);
+    console.log(`✅ Cliente ${id} eliminado por usuario ${usuario_id}`);
     res.json({ message: 'Cliente eliminado correctamente' });
   } catch (error) {
     console.error('Error eliminando cliente:', error);

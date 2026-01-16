@@ -1,1 +1,1 @@
-Actualización para Railway - Minuta Profesional Thu Jan 15 11:29:33 -03 2026
+v2.4.1 - Fix eliminacion de clientes - Thu Jan 16 2026
