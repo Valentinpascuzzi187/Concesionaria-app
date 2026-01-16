@@ -1736,3 +1736,491 @@ input.loading::after, select.loading::after, textarea.loading::after {
   padding: 1rem;
   border-top: 1px solid #e0e0e0;
 }
+
+/* ========== CRITICAL FIX: CORPORATE COLOR SCHEME ========== */
+/* Force brand colors to be visible everywhere */
+
+/* Main header/navbar - Corporate identity */
+.navbar {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+  border-top: 4px solid var(--color-secondary) !important;
+  border-bottom: 2px solid var(--color-primary) !important;
+  box-shadow: 0 4px 20px rgba(74, 144, 226, 0.15) !important;
+}
+
+.navbar-brand h1 {
+  color: var(--color-primary) !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Cards - Corporate styling */
+.card {
+  background: white !important;
+  border: none !important;
+  border-left: 5px solid var(--color-primary) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+}
+
+.card h2 {
+  color: var(--color-primary) !important;
+  border-bottom: 2px solid var(--color-secondary);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+/* Stat cards - Premium look */
+.stat-card {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #357abd 100%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3) !important;
+}
+
+.stat-card h3 {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.stat-number {
+  color: var(--color-secondary) !important;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+}
+
+/* ========== MINUTA CARD - PROFESSIONAL STYLING ========== */
+.minuta-card {
+  background: white;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.minuta-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}
+
+.minuta-header {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #357abd 100%);
+  padding: 1rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.minuta-header h4 {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.minuta-icon {
+  font-size: 1.2rem;
+}
+
+.estado-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.estado-badge.estado-activa {
+  background: var(--color-warning);
+  color: #333;
+}
+
+.estado-badge.estado-cerrada {
+  background: var(--color-success);
+  color: white;
+}
+
+.estado-badge.estado-cancelada {
+  background: var(--color-danger);
+  color: white;
+}
+
+.minuta-body {
+  padding: 1.25rem;
+}
+
+.minuta-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 480px) {
+  .minuta-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.info-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.info-icon {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+.info-item label {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item strong {
+  display: block;
+  color: var(--color-base);
+  font-size: 0.95rem;
+}
+
+.minuta-prices {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+}
+
+.price-item {
+  flex: 1;
+  text-align: center;
+}
+
+.price-item label {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+}
+
+.price-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-base);
+}
+
+.price-item.price-final .price-value {
+  color: var(--color-secondary);
+  font-size: 1.4rem;
+}
+
+.minuta-observaciones {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.minuta-observaciones > label {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--color-primary);
+}
+
+.minuta-actions {
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  border-top: 1px solid #e9ecef;
+}
+
+/* ========== MINUTA PROFESIONAL DETAILS (PARSED OBSERVATIONS) ========== */
+.minuta-profesional-details {
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.minuta-profesional-details .detail-section {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.minuta-profesional-details .detail-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.minuta-profesional-details .section-title {
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.minuta-profesional-details p {
+  margin: 0.4rem 0;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.minuta-profesional-details .detail-icon {
+  margin-right: 0.5rem;
+}
+
+.payment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-info {
+  background: var(--color-primary);
+  color: white;
+}
+
+.badge-success {
+  background: var(--color-success);
+  color: white;
+}
+
+.badge-warning {
+  background: var(--color-warning);
+  color: #333;
+}
+
+.badge-danger {
+  background: var(--color-danger);
+  color: white;
+}
+
+.user-notes {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--color-secondary);
+  font-style: italic;
+  color: #555;
+  margin: 0.5rem 0;
+}
+
+/* ========== EMPTY & ERROR STATES ========== */
+.empty-state, .error-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: #f8f9fa;
+  border-radius: 12px;
+  margin: 1rem 0;
+}
+
+.empty-state p:first-child, .error-state p:first-child {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-state {
+  background: #fff5f5;
+  border: 1px solid #ffcccc;
+}
+
+/* ========== BUTTONS - CORPORATE STYLING ========== */
+.btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #357abd 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3) !important;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4) !important;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, var(--color-success) 0%, #27ae60 100%) !important;
+  border: none !important;
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, var(--color-warning) 0%, #e67e22 100%) !important;
+  border: none !important;
+  color: white !important;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--color-danger) 0%, #c0392b 100%) !important;
+  border: none !important;
+}
+
+/* ========== FORM ELEMENTS - CORPORATE STYLING ========== */
+input, select, textarea {
+  border: 2px solid #e0e0e0 !important;
+  border-radius: 8px !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.15) !important;
+  outline: none !important;
+}
+
+/* Form labels */
+label {
+  color: #444;
+  font-weight: 500;
+}
+
+/* ========== VEHICLE & CLIENT CARDS ========== */
+.vehiculo-card, .cliente-card {
+  border-left: 4px solid var(--color-primary) !important;
+  transition: all 0.2s ease;
+}
+
+.vehiculo-card:hover, .cliente-card:hover {
+  border-left-color: var(--color-secondary) !important;
+  transform: translateY(-2px);
+}
+
+/* Estado badges */
+.estado-disponible {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.estado-reservado {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.estado-vendido {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* ========== SECTION TITLES ========== */
+.section h2, .card h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ========== DASHBOARD IMPROVEMENTS ========== */
+.dashboard-grid .stat-card:nth-child(1) {
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+}
+
+.dashboard-grid .stat-card:nth-child(2) {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%) !important;
+}
+
+.dashboard-grid .stat-card:nth-child(3) {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+}
+
+.dashboard-grid .stat-card:nth-child(4) {
+  background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%) !important;
+}
+
+/* ========== CLIENT CARD - PROFESSIONAL STYLING ========== */
+.cliente-card {
+  background: white;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.cliente-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}
+
+.cliente-header {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  padding: 1rem 1.25rem;
+}
+
+.cliente-header h4 {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cliente-icon {
+  font-size: 1.2rem;
+}
+
+.cliente-body {
+  padding: 1.25rem;
+}
+
+.cliente-info p {
+  margin: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cliente-info .info-label {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.cliente-info strong {
+  color: var(--color-base);
+}
+
+.cliente-observaciones {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.cliente-observaciones > label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #27ae60;
+}
+
+.cliente-actions {
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  border-top: 1px solid #e9ecef;
+}

@@ -50,6 +50,142 @@ function formatNumber(num) {
   return new Intl.NumberFormat('es-AR').format(num);
 }
 
+// ============= CRITICAL FIX: RENDER OBSERVATIONS PROPERLY =============
+/**
+ * NEVER show raw JSON to users.
+ * This function parses JSON observations and renders them as human-readable HTML.
+ */
+function renderObservaciones(observaciones) {
+  if (!observaciones) return '';
+  
+  // Try to parse as JSON (minuta profesional data)
+  try {
+    const data = JSON.parse(observaciones);
+    
+    // If it's a minuta profesional object, render it properly
+    if (data && typeof data === 'object') {
+      let html = '<div class="minuta-profesional-details">';
+      
+      // Location and Date
+      if (data.lugar || data.fecha) {
+        html += '<div class="detail-section">';
+        if (data.lugar) html += `<p><span class="detail-icon">📍</span> <strong>Lugar:</strong> ${data.lugar}</p>`;
+        if (data.fecha) html += `<p><span class="detail-icon">📅</span> <strong>Fecha:</strong> ${formatDate(data.fecha)}</p>`;
+        if (data.numero) html += `<p><span class="detail-icon">🧾</span> <strong>Minuta Nº:</strong> ${data.numero}</p>`;
+        html += '</div>';
+      }
+      
+      // Buyer info
+      if (data.comprador && (data.comprador.nombre || data.comprador.dni)) {
+        html += '<div class="detail-section">';
+        html += '<h5 class="section-title">👤 Comprador</h5>';
+        if (data.comprador.nombre) html += `<p><strong>Nombre:</strong> ${data.comprador.nombre}</p>`;
+        if (data.comprador.dni) html += `<p><strong>DNI:</strong> ${data.comprador.dni}</p>`;
+        if (data.comprador.domicilio) html += `<p><strong>Domicilio:</strong> ${data.comprador.domicilio}</p>`;
+        if (data.comprador.telefono) html += `<p><strong>Teléfono:</strong> ${data.comprador.telefono}</p>`;
+        if (data.comprador.email) html += `<p><strong>Email:</strong> ${data.comprador.email}</p>`;
+        html += '</div>';
+      }
+      
+      // Seller info
+      if (data.vendedor && (data.vendedor.nombre || data.vendedor.concesionaria)) {
+        html += '<div class="detail-section">';
+        html += '<h5 class="section-title">🏢 Vendedor</h5>';
+        if (data.vendedor.nombre) html += `<p><strong>Nombre:</strong> ${data.vendedor.nombre}</p>`;
+        if (data.vendedor.concesionaria) html += `<p><strong>Concesionaria:</strong> ${data.vendedor.concesionaria}</p>`;
+        html += '</div>';
+      }
+      
+      // Vehicle info
+      if (data.vehiculo && (data.vehiculo.marca || data.vehiculo.modelo)) {
+        html += '<div class="detail-section">';
+        html += '<h5 class="section-title">🚗 Vehículo</h5>';
+        if (data.vehiculo.marca) html += `<p><strong>Marca:</strong> ${data.vehiculo.marca}</p>`;
+        if (data.vehiculo.modelo) html += `<p><strong>Modelo:</strong> ${data.vehiculo.modelo}</p>`;
+        if (data.vehiculo.anio) html += `<p><strong>Año:</strong> ${data.vehiculo.anio}</p>`;
+        if (data.vehiculo.dominio) html += `<p><strong>Dominio:</strong> ${data.vehiculo.dominio}</p>`;
+        if (data.vehiculo.color) html += `<p><strong>Color:</strong> ${data.vehiculo.color}</p>`;
+        if (data.vehiculo.condicion) html += `<p><strong>Condición:</strong> ${data.vehiculo.condicion}</p>`;
+        html += '</div>';
+      }
+      
+      // Payment info
+      if (data.montos) {
+        html += '<div class="detail-section">';
+        html += '<h5 class="section-title">💰 Condiciones de Pago</h5>';
+        if (data.montos.precioLista) html += `<p><strong>Precio Lista:</strong> ${formatNumberCompact(parseFloat(data.montos.precioLista))}</p>`;
+        if (data.montos.precioFinal) html += `<p><strong>Precio Final:</strong> ${formatNumberCompact(parseFloat(data.montos.precioFinal))}</p>`;
+        if (data.montos.reserva) html += `<p><strong>Reserva:</strong> ${formatNumberCompact(parseFloat(data.montos.reserva))}</p>`;
+        if (data.montos.anticipo) html += `<p><strong>Anticipo:</strong> ${formatNumberCompact(parseFloat(data.montos.anticipo))}</p>`;
+        if (data.montos.saldoPendiente) html += `<p><strong>Saldo Pendiente:</strong> ${formatNumberCompact(parseFloat(data.montos.saldoPendiente))}</p>`;
+        html += '</div>';
+      }
+      
+      // Payment conditions
+      if (data.condiciones) {
+        const condiciones = [];
+        if (data.condiciones.contado) condiciones.push('Contado');
+        if (data.condiciones.reserva) condiciones.push('Reserva');
+        if (data.condiciones.anticipo) condiciones.push('Anticipo');
+        if (data.condiciones.credito) condiciones.push('Crédito');
+        if (data.condiciones.financiacion) condiciones.push('Financiación');
+        if (data.condiciones.tarjeta) condiciones.push('Tarjeta');
+        if (data.condiciones.permuta) condiciones.push('Permuta');
+        
+        if (condiciones.length > 0) {
+          html += '<div class="detail-section">';
+          html += '<h5 class="section-title">📋 Forma de Pago</h5>';
+          html += `<p class="payment-badges">${condiciones.map(c => `<span class="badge badge-info">${c}</span>`).join(' ')}</p>`;
+          html += '</div>';
+        }
+      }
+      
+      // User notes (actual observations)
+      if (data.observaciones && typeof data.observaciones === 'string' && data.observaciones.trim()) {
+        html += '<div class="detail-section">';
+        html += '<h5 class="section-title">📝 Notas</h5>';
+        html += `<p class="user-notes">${escapeHtml(data.observaciones)}</p>`;
+        html += '</div>';
+      }
+      
+      html += '</div>';
+      return html;
+    }
+  } catch (e) {
+    // Not JSON, treat as plain text
+  }
+  
+  // Plain text observations - just render as human text
+  return `<p class="user-notes">${escapeHtml(observaciones)}</p>`;
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Format date for display
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 // URL del servidor de producción en Railway
 const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
 
@@ -724,28 +860,40 @@ async function loadClientes() {
     const listDiv = document.getElementById('clientesContent');
 
     if (clientes.length === 0) {
-      listDiv.innerHTML = '<p style="text-align: center; color: #999;">No hay clientes registrados</p>';
+      listDiv.innerHTML = '<div class="empty-state"><p>👥 No hay clientes registrados</p><p style="color:#888;">Los clientes que agregues aparecerán aquí</p></div>';
       return;
     }
 
     listDiv.innerHTML = clientes.map(c => `
       <div class="cliente-card">
-        <h4>${c.nombre} ${c.apellido}</h4>
-        <p><strong>DNI:</strong> ${c.dni}</p>
-        <p><strong>Teléfono:</strong> ${c.telefono || 'N/A'}</p>
-        <p><strong>Email:</strong> ${c.email || 'N/A'}</p>
-        <p><strong>Dirección:</strong> ${c.direccion || 'N/A'}</p>
-        ${c.observaciones ? `<p><strong>Observaciones:</strong> ${c.observaciones}</p>` : ''}
+        <div class="cliente-header">
+          <h4><span class="cliente-icon">👤</span> ${escapeHtml(c.nombre)} ${escapeHtml(c.apellido)}</h4>
+        </div>
+        <div class="cliente-body">
+          <div class="cliente-info">
+            <p><span class="info-label">🪪 DNI:</span> <strong>${escapeHtml(c.dni)}</strong></p>
+            <p><span class="info-label">📞 Teléfono:</span> <strong>${escapeHtml(c.telefono) || 'N/A'}</strong></p>
+            <p><span class="info-label">📧 Email:</span> <strong>${escapeHtml(c.email) || 'N/A'}</strong></p>
+            <p><span class="info-label">📍 Dirección:</span> <strong>${escapeHtml(c.direccion) || 'N/A'}</strong></p>
+          </div>
+          ${c.observaciones ? `
+            <div class="cliente-observaciones">
+              <label><strong>📝 Observaciones:</strong></label>
+              <p class="user-notes">${escapeHtml(c.observaciones)}</p>
+            </div>
+          ` : ''}
+        </div>
         ${currentUser && currentUser.es_premium ? `
-          <div style="margin-top: 15px;">
-            <button class="btn btn-danger btn-sm" onclick="eliminarCliente(${c.id})">🗑️ Eliminar</button>
+          <div class="cliente-actions">
             <button class="btn btn-warning btn-sm" onclick="editarCliente(${c.id})">✏️ Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="eliminarCliente(${c.id})">🗑️ Eliminar</button>
           </div>
         ` : ''}
       </div>
     `).join('');
   } catch (error) {
     console.error('Error cargando clientes:', error);
+    document.getElementById('clientesContent').innerHTML = '<div class="error-state"><p>❌ Error al cargar clientes</p></div>';
   }
 }
 
@@ -830,31 +978,82 @@ async function loadMinutas() {
     const listDiv = document.getElementById('minutasContent');
 
     if (minutas.length === 0) {
-      listDiv.innerHTML = '<p style="text-align: center; color: #999;">No hay minutas registradas</p>';
+      listDiv.innerHTML = '<div class="empty-state"><p>📋 No hay minutas registradas</p><p style="color:#888;">Las minutas que crees aparecerán aquí</p></div>';
       return;
     }
 
     listDiv.innerHTML = minutas.map(m => `
       <div class="minuta-card">
-        <h4>Minuta #${m.id}</h4>
-        <p><strong>Vehículo:</strong> ${m.marca} ${m.modelo} (${m.anio})</p>
-        <p><strong>Cliente:</strong> ${m.cliente_nombre} ${m.cliente_apellido}</p>
-        <p><strong>Vendedor:</strong> ${m.vendedor_nombre}</p>
-        <p><strong>Precio Original:</strong> $${m.precio_original.toLocaleString()}</p>
-        <p><strong>Precio Final:</strong> $${m.precio_final.toLocaleString()}</p>
-        <p><strong>Estado:</strong> <span class="estado-${m.estado}">${m.estado}</span></p>
-        <p><strong>Fecha:</strong> ${new Date(m.created_at).toLocaleDateString()}</p>
-        ${m.observaciones ? `<p><strong>Observaciones:</strong> ${m.observaciones}</p>` : ''}
+        <div class="minuta-header">
+          <h4><span class="minuta-icon">📋</span> Minuta #${m.id}</h4>
+          <span class="estado-badge estado-${m.estado}">${m.estado.toUpperCase()}</span>
+        </div>
+        
+        <div class="minuta-body">
+          <div class="minuta-info-grid">
+            <div class="info-item">
+              <span class="info-icon">🚗</span>
+              <div>
+                <label>Vehículo</label>
+                <strong>${m.marca} ${m.modelo} (${m.anio})</strong>
+              </div>
+            </div>
+            
+            <div class="info-item">
+              <span class="info-icon">👤</span>
+              <div>
+                <label>Cliente</label>
+                <strong>${m.cliente_nombre} ${m.cliente_apellido}</strong>
+              </div>
+            </div>
+            
+            <div class="info-item">
+              <span class="info-icon">🏢</span>
+              <div>
+                <label>Vendedor</label>
+                <strong>${m.vendedor_nombre || 'Sin asignar'}</strong>
+              </div>
+            </div>
+            
+            <div class="info-item">
+              <span class="info-icon">📅</span>
+              <div>
+                <label>Fecha</label>
+                <strong>${new Date(m.created_at).toLocaleDateString('es-AR')}</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="minuta-prices">
+            <div class="price-item">
+              <label>Precio Lista</label>
+              <span class="price-value">${formatNumberCompact(m.precio_original)}</span>
+            </div>
+            <div class="price-item price-final">
+              <label>Precio Final</label>
+              <span class="price-value">${formatNumberCompact(m.precio_final)}</span>
+            </div>
+          </div>
+          
+          ${m.observaciones ? `
+            <div class="minuta-observaciones">
+              <label><strong>📝 Detalles:</strong></label>
+              ${renderObservaciones(m.observaciones)}
+            </div>
+          ` : ''}
+        </div>
+        
         ${currentUser && currentUser.es_premium ? `
-          <div style="margin-top: 15px;">
-            <button class="btn btn-danger btn-sm" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
+          <div class="minuta-actions">
             <button class="btn btn-warning btn-sm" onclick="editarMinuta(${m.id})">✏️ Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="eliminarMinuta(${m.id})">🗑️ Eliminar</button>
           </div>
         ` : ''}
       </div>
     `).join('');
   } catch (error) {
     console.error('Error cargando minutas:', error);
+    document.getElementById('minutasContent').innerHTML = '<div class="error-state"><p>❌ Error al cargar minutas</p></div>';
   }
 }
 
