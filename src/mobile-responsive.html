@@ -77,17 +77,33 @@
       flex-direction: column;
       align-items: center;
       gap: 4px;
-      transition: all 0.2s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       text-align: center;
+      position: relative;
     }
 
     .nav-btn-mobile.active {
       color: var(--color-primary);
       font-weight: bold;
+      animation: bounce 0.4s ease;
+    }
+
+    .nav-btn-mobile.active::before {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 30px;
+      height: 3px;
+      background: var(--color-secondary);
+      border-radius: 2px;
+      animation: slideUp 0.3s ease;
     }
 
     .nav-btn-mobile:active {
-      background: rgba(102, 126, 234, 0.1);
+      background: rgba(74, 144, 226, 0.1);
+      border-radius: 8px;
     }
 
     /* Header */
@@ -139,7 +155,7 @@
     /* Secciones */
     .section {
       display: none;
-      animation: fadeIn 0.3s ease;
+      animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .section.active {
@@ -147,8 +163,46 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from { 
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
     }
 
     /* Tarjetas */
@@ -158,6 +212,14 @@
       padding: 15px;
       margin-bottom: 15px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-left: 4px solid var(--color-primary);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: slideInLeft 0.4s ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(74, 144, 226, 0.2);
+      transform: translateY(-2px);
     }
 
     .card h2 {
@@ -194,6 +256,13 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       display: flex;
       flex-direction: column;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: slideInLeft 0.5s ease backwards;
+    }
+
+    .vehiculo-thumbnail:hover {
+      box-shadow: 0 8px 20px rgba(74, 144, 226, 0.3);
+      transform: translateY(-4px);
     }
 
     .carrusel-container {
@@ -334,13 +403,16 @@
 
     /* Botones */
     .btn {
-      padding: 10px 15px;
+      padding: 12px 15px;
       border: none;
       border-radius: 8px;
       font-size: 0.9em;
       cursor: pointer;
-      transition: all 0.2s;
-      font-weight: 500;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .btn-primary {
@@ -350,35 +422,55 @@
 
     .btn-primary:active {
       opacity: 0.9;
+      transform: scale(0.98);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
     }
 
     .btn-sm {
-      padding: 6px 10px;
+      padding: 8px 12px;
       font-size: 0.8em;
     }
 
     /* Formularios */
     .form-group {
-      margin-bottom: 12px;
+      margin-bottom: 15px;
+      animation: slideInLeft 0.4s ease backwards;
     }
 
     .form-group label {
       display: block;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       color: #333;
-      font-weight: 500;
+      font-weight: 600;
       font-size: 0.9em;
+      letter-spacing: 0.3px;
     }
 
     .form-group input,
     .form-group select,
     .form-group textarea {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
       border-radius: 8px;
       font-size: 1em;
       font-family: inherit;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: #fafafa;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    }
     }
 
     .message {
