@@ -14,10 +14,16 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Servir archivos estáticos (para acceso móvil)
-app.use(express.static(path.join(__dirname, 'src')));
+// Middleware de verificación de conexión DB
+app.use((req, res, next) => {
+  if (!pool) {
+    return res.status(503).json({ message: 'Base de datos no disponible', error: 'db_not_connected' });
+  }
+  next();
+});
 
 // Servir páginas móviles desde /public sin sobrescribir index.html de Electron
 app.get('/mobile.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'mobile.html')));
@@ -627,6 +633,8 @@ async function ensureColumns() {
   if (!(await colExists('minutas', 'tradein_proporciona'))) await addColumn('minutas', 'tradein_proporciona', 'TINYINT(1) DEFAULT 0');
   if (!(await colExists('minutas', 'tradein_datos'))) await addColumn('minutas', 'tradein_datos', 'TEXT NULL');
   if (!(await colExists('minutas', 'reserva_monto'))) await addColumn('minutas', 'reserva_monto', 'DECIMAL(12,2) DEFAULT 0');
+  // usuarios: super_admin flag
+  if (!(await colExists('usuarios', 'super_admin'))) await addColumn('usuarios', 'super_admin', 'TINYINT(1) DEFAULT 0');
 }
 
 /* =========================
@@ -640,8 +648,8 @@ async function crearUsuarioPremium() {
     const row = await qFirst('SELECT id FROM usuarios WHERE email = ?', [premiumEmail]);
     if (!row) {
       const result = await q(
-        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado) VALUES (?, ?, ?, ?, ?, ?)',
-        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1]
+        'INSERT INTO usuarios (nombre, email, password, rol, es_premium, habilitado, super_admin) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        ['Dueño', premiumEmail, 'Halcon2716@', 'administrador', 1, 1, 1]
       );
 
       console.log('✅ Usuario premium creado exitosamente');
@@ -653,7 +661,8 @@ async function crearUsuarioPremium() {
         nombre: 'Dueño',
         email: premiumEmail,
         rol: 'administrador',
-        es_premium: true
+        es_premium: true,
+        super_admin: true
       });
     } else {
       console.log('✅ Usuario premium ya existe');
@@ -991,14 +1000,20 @@ app.post('/api/auth/login', async (req, res) => {
     const ipAddress = req.ip || (req.connection && req.connection.remoteAddress);
     const userAgent = req.get('User-Agent');
 
-    const allowedIPs = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'];
-    const isAllowedIP = allowedIPs.includes(ipAddress) || String(ipAddress).includes('127.0.0.1') || String(ipAddress).includes('localhost');
-
     if (!email || !password) {
       return res.status(400).json({ message: 'Email y password son obligatorios' });
     }
 
-    const row = await qFirst('SELECT * FROM usuarios WHERE email = ?', [email]);
+    let row;
+    try {
+      row = await qFirst('SELECT * FROM usuarios WHERE email = ?', [email]);
+    } catch (dbErr) {
+      console.error('❌ Error DB en auth/login:', dbErr.message);
+      return res.status(503).json({ message: 'Base de datos no disponible', error: 'db_error' });
+    }
+
+    const allowedIPs = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost'];
+    const isAllowedIP = allowedIPs.includes(ipAddress) || String(ipAddress).includes('127.0.0.1') || String(ipAddress).includes('localhost');
 
     if (!row) {
       if (!isAllowedIP) await registrarAccion(null, null, 'LOGIN_FALLIDO', 'auth', JSON.stringify({ email, error: 'usuario_no_encontrado' }), ipAddress);
@@ -1039,7 +1054,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    res.json({
+    return res.json({
       message: 'Login exitoso',
       user: {
         id: row.id,
@@ -1048,13 +1063,15 @@ app.post('/api/auth/login', async (req, res) => {
         rol: row.rol,
         es_premium: !!row.es_premium,
         es_admin: row.rol === 'administrador' && !row.es_premium,
+        super_admin: !!row.super_admin,
         habilitado: !!row.habilitado,
         sesion_id: sesionId
       }
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Error en el servidor' });
+    console.error('❌ Error en /api/auth/login:', error.message);
+    res.status(500).json({ message: 'Error en el servidor', error: error.message });
   }
 });
 
@@ -1612,7 +1629,8 @@ app.put('/api/minutas/:id', async (req, res) => {
     const user = await qFirst('SELECT id, rol, es_premium FROM usuarios WHERE id = ?', [usuario_id]);
     if (!user) return res.status(403).json({ message: 'Usuario no válido' });
 
-    if (!(user.rol === 'administrador' || user.es_premium === 1)) {
+    const isPremium = !!user.es_premium;
+    if (!(user.rol === 'administrador' || isPremium)) {
       return res.status(403).json({ message: 'No tienes permisos para editar la minuta' });
     }
 
@@ -1826,12 +1844,21 @@ app.delete('/api/vehiculos/:id', async (req, res) => {
 app.delete('/api/clientes/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Verificar si es admin premium
-    // (Aquí deberías verificar el token o sesión del usuario)
-    
+    const usuario_id = req.body && req.body.usuario_id ? req.body.usuario_id : (req.query && req.query.usuario_id ? req.query.usuario_id : null);
+    if (!usuario_id) return res.status(403).json({ message: 'Falta usuario_id para verificar permisos' });
+
+    const user = await qFirst('SELECT id, rol, es_premium, super_admin FROM usuarios WHERE id = ?', [usuario_id]);
+    if (!user) return res.status(403).json({ message: 'Usuario no válido' });
+
+    const isSuper = !!user.super_admin;
+    const isAdmin = user.rol === 'administrador';
+    const isPremium = !!user.es_premium;
+
+    if (!(isSuper || isAdmin || isPremium)) {
+      return res.status(403).json({ message: 'No tienes permisos para eliminar clientes' });
+    }
+
     await q('UPDATE clientes SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
-    
     res.json({ message: 'Cliente eliminado correctamente' });
   } catch (error) {
     console.error('Error eliminando cliente:', error);
@@ -1842,12 +1869,26 @@ app.delete('/api/clientes/:id', async (req, res) => {
 app.delete('/api/minutas/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Verificar si es admin premium
-    // (Aquí deberías verificar el token o sesión del usuario)
-    
+    // verificar usuario que solicita
+    const usuario_id = req.body && req.body.usuario_id ? req.body.usuario_id : (req.query && req.query.usuario_id ? req.query.usuario_id : null);
+    if (!usuario_id) return res.status(403).json({ message: 'Falta usuario_id para verificar permisos' });
+
+    const user = await qFirst('SELECT id, rol, es_premium, super_admin FROM usuarios WHERE id = ?', [usuario_id]);
+    if (!user) return res.status(403).json({ message: 'Usuario no válido' });
+
+    const minuta = await qFirst('SELECT * FROM minutas WHERE id = ? AND eliminado = 0', [id]);
+    if (!minuta) return res.status(404).json({ message: 'Minuta no encontrada' });
+
+    const isSuper = !!user.super_admin;
+    const isAdmin = user.rol === 'administrador';
+    const isPremium = !!user.es_premium;
+
+    // permitir si super admin, admin, premium o propietario (vendedor)
+    if (!(isSuper || isAdmin || isPremium || user.id === minuta.vendedor_id)) {
+      return res.status(403).json({ message: 'No tienes permisos para eliminar esta minuta' });
+    }
+
     await q('UPDATE minutas SET eliminado = 1, fecha_eliminacion = CURRENT_TIMESTAMP WHERE id = ?', [id]);
-    
     res.json({ message: 'Minuta eliminada correctamente' });
   } catch (error) {
     console.error('Error eliminando minuta:', error);
@@ -1989,6 +2030,18 @@ app.delete('/api/usuarios/:id', async (req, res) => {
 /* =========================
    START SERVER
 ========================= */
+
+// Error handler middleware (catch all)
+app.use((err, req, res, next) => {
+  console.error('🔴 Error no manejado:', err);
+  res.status(500).json({
+    message: 'Error interno del servidor',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Error desconocido'
+  });
+});
+
+// Serve static files (after all API routes)
+app.use(express.static(path.join(__dirname, 'src')));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
