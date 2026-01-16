@@ -131,6 +131,10 @@ function showSection(sectionId) {
     loadClientes();
   } else if (sectionId === 'minutas') {
     loadMinutas();
+  } else if (sectionId === 'pagos') {
+    loadPagos();
+  } else if (sectionId === 'reportes') {
+    loadReportes();
   }
 }
 
@@ -265,6 +269,145 @@ async function loadDashboard() {
   }
 }
 
+// Cargar Pagos
+async function loadPagos() {
+  try {
+    const minutas = await window.api.getMinutas();
+    
+    let totalPagado = 0;
+    let totalPendiente = 0;
+    let minutasPagadas = 0;
+    let minutasPendientes = 0;
+    
+    const registros = [];
+    
+    minutas.forEach(m => {
+      if (m.estado !== 'cancelada') {
+        const monto = parseFloat(m.precio_final) || 0;
+        
+        if (m.pagado) {
+          totalPagado += monto;
+          minutasPagadas++;
+          registros.push({
+            id: m.id,
+            numero: m.numero || m.id,
+            fecha: m.created_at,
+            monto: monto,
+            estado: 'PAGADO',
+            cliente: m.cliente_id
+          });
+        } else {
+          totalPendiente += monto;
+          minutasPendientes++;
+        }
+      }
+    });
+    
+    document.getElementById('totalPagado').textContent = '$' + totalPagado.toLocaleString('es-AR');
+    document.getElementById('totalPendiente').textContent = '$' + totalPendiente.toLocaleString('es-AR');
+    document.getElementById('minutasPagadas').textContent = minutasPagadas;
+    document.getElementById('minutasPendientes').textContent = minutasPendientes;
+    
+    // Mostrar registros
+    const contenedor = document.getElementById('registroPagosContent');
+    if (registros.length === 0) {
+      contenedor.innerHTML = '<p style="text-align: center; color: #999;">No hay pagos registrados</p>';
+      return;
+    }
+    
+    let html = '<table style="width: 100%; border-collapse: collapse;">';
+    html += '<tr style="background: #f0f0f0; font-weight: bold;">';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Nº Minuta</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Fecha</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Monto</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Estado</td>';
+    html += '</tr>';
+    
+    registros.forEach(r => {
+      html += '<tr>';
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${r.numero}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${new Date(r.fecha).toLocaleDateString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">$${r.monto.toLocaleString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;"><span style="background: #d4edda; padding: 4px 8px; border-radius: 4px; color: #155724;">✅ ${r.estado}</span></td>`;
+      html += '</tr>';
+    });
+    
+    html += '</table>';
+    contenedor.innerHTML = html;
+  } catch (error) {
+    console.error('Error cargando pagos:', error);
+  }
+}
+
+// Cargar Reportes / Dashboard de Ventas
+async function loadReportes() {
+  try {
+    const vehiculos = await window.api.getVehiculos();
+    const minutas = await window.api.getMinutas();
+    
+    // Calcular estadísticas
+    const totalVentas = minutas.filter(m => m.estado === 'cerrada').length;
+    let ingresosTotales = 0;
+    let egresosTotal = 0;
+    
+    minutas.forEach(m => {
+      if (m.pagado) {
+        ingresosTotales += parseFloat(m.precio_final) || 0;
+      } else if (m.estado === 'cancelada') {
+        egresosTotal += parseFloat(m.precio_original) || 0;
+      }
+    });
+    
+    const vehiculosStock = vehiculos.filter(v => v.estado === 'disponible').length;
+    const tasaConversion = vehiculos.length > 0 ? ((totalVentas / vehiculos.length) * 100).toFixed(2) : '0';
+    
+    document.getElementById('totalVentas').textContent = totalVentas;
+    document.getElementById('ingresosTotales').textContent = '$' + ingresosTotales.toLocaleString('es-AR');
+    document.getElementById('vehiculosStock').textContent = vehiculosStock;
+    document.getElementById('tasaConversion').textContent = tasaConversion + '%';
+    
+    // Historial de ventas
+    const ventasHistorial = minutas
+      .filter(m => m.estado === 'cerrada' || m.pagado)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 10);
+    
+    const contenedor = document.getElementById('historialVentasContent');
+    if (ventasHistorial.length === 0) {
+      contenedor.innerHTML = '<p style="text-align: center; color: #999;">No hay ventas registradas</p>';
+      return;
+    }
+    
+    let html = '<table style="width: 100%; border-collapse: collapse;">';
+    html += '<tr style="background: #f0f0f0; font-weight: bold;">';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Nº Minuta</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Fecha</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Monto Final</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Pago</td>';
+    html += '<td style="padding: 12px; border: 1px solid #ddd;">Estado</td>';
+    html += '</tr>';
+    
+    ventasHistorial.forEach(v => {
+      const estadoBadge = v.pagado 
+        ? '<span style="background: #d4edda; padding: 4px 8px; border-radius: 4px; color: #155724;">✅ PAGADO</span>'
+        : '<span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px; color: #856404;">⏳ PENDIENTE</span>';
+      
+      html += '<tr>';
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${v.numero || v.id}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${new Date(v.created_at).toLocaleDateString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">$${(v.precio_final || 0).toLocaleString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">$${(v.reserva_monto || 0).toLocaleString('es-AR')}</td>`;
+      html += `<td style="padding: 12px; border: 1px solid #ddd;">${estadoBadge}</td>`;
+      html += '</tr>';
+    });
+    
+    html += '</table>';
+    contenedor.innerHTML = html;
+  } catch (error) {
+    console.error('Error cargando reportes:', error);
+  }
+}
+
 // Vehículos
 function toggleVehiculoForm() {
   const form = document.getElementById('vehiculoForm');
@@ -323,63 +466,124 @@ async function loadVehiculos() {
       return;
     }
 
-    let html = '';
+    // Crear grid responsive (6-8 por fila)
+    let html = '<div class="vehiculos-grid">';
+    
     for (const v of vehiculos) {
-      // Obtener seguimiento de trámites
+      // Obtener fotos para carrusel
+      let fotos = [];
+      try {
+        fotos = await window.api.getFotosVehiculo(v.id);
+      } catch (e) {
+        console.log('No hay fotos para vehículo', v.id);
+      }
+
+      // Obtener seguimiento
       let seguimientoHtml = '';
       try {
         const seguimientos = await window.api.getSeguimientoVehiculo(v.id);
         if (seguimientos && seguimientos.length > 0) {
           const ultimo = seguimientos[0];
-          seguimientoHtml = `<span class="seguimiento-badge seguimiento-${ultimo.estado}">${ultimo.estado.toUpperCase()} - ${ultimo.porcentaje_avance}%</span>`;
+          seguimientoHtml = `<span class="seguimiento-badge seguimiento-${ultimo.estado}">${ultimo.porcentaje_avance}%</span>`;
         }
       } catch (e) {
         console.log('No hay seguimiento para vehículo', v.id);
       }
 
-      // Obtener fotos
-      let fotosHtml = '';
-      try {
-        const fotos = await window.api.getFotosVehiculo(v.id);
-        if (fotos && fotos.length > 0) {
-          fotosHtml = '<div class="foto-gallery">' +
-            fotos.slice(0, 4).map(f => `
-              <img src="${f.url_imagen}" alt="Foto" class="foto-thumbnail" onclick="verFotoGrande('${f.url_imagen}')">
-            `).join('') +
-            (fotos.length > 4 ? `<div style="background: #eee; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">+${fotos.length - 4}</div>` : '') +
-            '</div>';
-        }
-      } catch (e) {
-        console.log('No hay fotos para vehículo', v.id);
-      }
-
+      // Crear carrusel
+      const fotosArray = fotos && fotos.length > 0 ? fotos : [{url_imagen: '/assets/placeholder.svg', tipo: 'placeholder'}];
+      const fotosJson = JSON.stringify(fotosArray).replace(/"/g, '&quot;');
+      
       html += `
-        <div class="vehiculo-card">
-          <h4>${v.marca} ${v.modelo} ${v.version || ''} (${v.anio})</h4>
-          <p><strong>Tipo:</strong> ${v.tipo}</p>
-          <p><strong>Condición:</strong> ${v.condicion}</p>
-          <p><strong>Dominio:</strong> ${v.dominio || 'N/A'}</p>
-          <p><strong>Precio:</strong> $${v.precio.toLocaleString()}</p>
-          <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span> ${seguimientoHtml}</p>
-          ${fotosHtml}
+        <div class="vehiculo-thumbnail" onclick="abrirDetalleVehiculo(${v.id})">
+          <div class="carrusel-container" data-vehiculo-id="${v.id}">
+            <img class="carrusel-image" src="${fotosArray[0].url_imagen}" alt="${v.marca} ${v.modelo}">
+            <div class="carrusel-dots">
+              ${fotosArray.map((f, i) => `<span class="dot" id="dot-${v.id}-${i}" style="background: ${i === 0 ? '#667eea' : '#ccc'};"></span>`).join('')}
+            </div>
+            ${seguimientoHtml ? `<div class="progreso-badge">${seguimientoHtml}</div>` : ''}
+          </div>
+          
+          <div class="vehiculo-info">
+            <h3>${v.marca} ${v.modelo}</h3>
+            <p class="version">${v.version || 'S/V'} - ${v.anio}</p>
+            
+            <div class="vehiculo-specs">
+              <span class="spec"><strong>Condición:</strong> ${v.condicion === '0km' ? 'Nuevo' : 'Usado'}</span>
+              <span class="spec"><strong>Tipo:</strong> ${v.tipo}</span>
+              ${v.dominio ? `<span class="spec"><strong>Dominio:</strong> ${v.dominio}</span>` : ''}
+            </div>
+            
+            <p class="precio">$${v.precio.toLocaleString('es-AR')}</p>
+            
+            <div class="estado-badge estado-${v.estado}">
+              ${v.estado.replace(/_/g, ' ').toUpperCase()}
+            </div>
+          </div>
+          
           ${currentUser && currentUser.es_premium ? `
-            <div style="margin-top: 15px;">
-              <button class="btn btn-info btn-sm" onclick="verGaleria(${v.id})">📷 Galería</button>
-              <button class="btn btn-info btn-sm" onclick="verSeguimiento(${v.id})">📈 Seguimiento</button>
-              <button class="btn btn-danger btn-sm" onclick="eliminarVehiculo(${v.id})">🗑️ Eliminar</button>
-              <button class="btn btn-warning btn-sm" onclick="editarVehiculo(${v.id})">✏️ Editar</button>
+            <div class="vehiculo-actions" style="display: none;">
+              <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); verGaleria(${v.id})">📷</button>
+              <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); verSeguimiento(${v.id})">📈</button>
+              <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); editarVehiculo(${v.id})">✏️</button>
+              <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); eliminarVehiculo(${v.id})">🗑️</button>
             </div>
           ` : ''}
         </div>
       `;
+
+      // Iniciar carrusel automático después de renderizar
+      setTimeout(() => iniciarCarruselVehiculo(v.id, fotosArray), 100);
     }
+
+    html += '</div>';
     listDiv.innerHTML = html;
+
+    // Agregar interactividad hover para mostrar botones
+    document.querySelectorAll('.vehiculo-thumbnail').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        const actions = el.querySelector('.vehiculo-actions');
+        if (actions) actions.style.display = 'flex';
+      });
+      el.addEventListener('mouseleave', () => {
+        const actions = el.querySelector('.vehiculo-actions');
+        if (actions) actions.style.display = 'none';
+      });
+    });
+
   } catch (error) {
     console.error('Error cargando vehículos:', error);
   }
 }
 
-// Clientes
+// Iniciar carrusel automático para un vehículo
+function iniciarCarruselVehiculo(vehiculoId, fotos) {
+  if (!fotos || fotos.length <= 1) return;
+
+  let currentIndex = 0;
+  const container = document.querySelector(`[data-vehiculo-id="${vehiculoId}"]`);
+  if (!container) return;
+
+  const img = container.querySelector('.carrusel-image');
+  const dots = container.querySelectorAll('.dot');
+
+  setInterval(() => {
+    currentIndex = (currentIndex + 1) % fotos.length;
+    img.style.opacity = '0.5';
+    
+    setTimeout(() => {
+      img.src = fotos[currentIndex].url_imagen;
+      img.style.opacity = '1';
+    }, 150);
+
+    // Actualizar dots
+    dots.forEach((dot, i) => {
+      dot.style.background = i === currentIndex ? '#667eea' : '#ccc';
+    });
+  }, 3000); // Cambiar foto cada 3 segundos
+}
+
+// Cargar Pagos
 function toggleClienteForm() {
   const form = document.getElementById('clienteForm');
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
@@ -1479,3 +1683,10 @@ function descargarSeguimientoPDF(vehiculoId) {
   }
 }
 
+// Abrir detalle del vehículo (para hacer minuta)
+function abrirDetalleVehiculo(vehiculoId) {
+  showSection('minutas');
+  // Cargar el vehículo en el formulario de minuta si es necesario
+  document.getElementById('vehiculoSelect').value = vehiculoId;
+  loadVehiculos(); // Recargar para reflejar selección
+}

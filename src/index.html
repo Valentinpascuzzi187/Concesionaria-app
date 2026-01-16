@@ -740,17 +740,63 @@
     <div id="pagos" class="section">
         <div class="card">
             <h2>💰 Gestión de Pagos</h2>
-            <p>Solo usuarios administrativos pueden registrar pagos recibidos.</p>
-            <!-- Contenido de pagos -->
+            
+            <div style="margin-bottom: 30px;">
+                <h3>Resumen de Pagos</h3>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Total Ingresado</h3>
+                        <p class="stat-number" id="totalPagado">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Pendiente</h3>
+                        <p class="stat-number" id="totalPendiente">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Minutas Pagadas</h3>
+                        <p class="stat-number" id="minutasPagadas">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Minutas Pendiente</h3>
+                        <p class="stat-number" id="minutasPendientes">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Registro de Pagos Recibidos</h3>
+            <div id="registroPagosContent" style="margin-top: 20px;"></div>
         </div>
     </div>
 
     <!-- Sección de Reportes -->
     <div id="reportes" class="section">
         <div class="card">
-            <h2>📈 Reportes y Estadísticas</h2>
-            <p>Generación de reportes detallados de ventas y actividad.</p>
-            <!-- Contenido de reportes -->
+            <h2>📈 Dashboard de Ventas</h2>
+            
+            <div style="margin-bottom: 30px;">
+                <h3>Estadísticas Generales</h3>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Total Ventas</h3>
+                        <p class="stat-number" id="totalVentas">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Ingresos Totales</h3>
+                        <p class="stat-number" id="ingresosTotales">$0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Vehículos en Stock</h3>
+                        <p class="stat-number" id="vehiculosStock">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Tasa de Conversión</h3>
+                        <p class="stat-number" id="tasaConversion">0%</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Historial de Transacciones</h3>
+            <div id="historialVentasContent" style="margin-top: 20px;"></div>
         </div>
     </div>
 
