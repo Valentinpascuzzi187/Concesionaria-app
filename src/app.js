@@ -4,16 +4,44 @@ let currentUser = null;
 let currentSessionId = null;
 let trackingInterval = null;
 
+// URL del servidor de producción en Railway
+const RAILWAY_URL = 'https://concesionaria-app-production.up.railway.app';
+
 // Fallback API client: si window.api no está disponible (navegador web), usamos fetch
 (() => {
   try {
-    const BASE = (location.protocol && location.host) ? `${location.protocol}//${location.host}` : 'http://localhost:4000';
+    // Detectar si estamos en Capacitor/APK (localhost con https o file://)
+    const isCapacitor = (
+      location.protocol === 'file:' ||
+      (location.protocol === 'https:' && location.host === 'localhost') ||
+      (location.protocol === 'capacitor:') ||
+      (typeof Capacitor !== 'undefined')
+    );
+    
+    // En Capacitor/APK usar Railway, en navegador web usar el mismo host
+    let BASE;
+    if (isCapacitor) {
+      BASE = RAILWAY_URL;
+      console.log('📱 Detectado entorno Capacitor/APK - usando servidor:', BASE);
+    } else if (location.protocol && location.host && location.host !== 'localhost') {
+      BASE = `${location.protocol}//${location.host}`;
+      console.log('🌐 Detectado navegador web - usando mismo host:', BASE);
+    } else {
+      BASE = 'http://localhost:4000';
+      console.log('💻 Detectado entorno local - usando localhost:4000');
+    }
 
     const call = async (endpoint, method = 'GET', body = null) => {
       const opts = { method, headers: { 'Content-Type': 'application/json' } };
       if (body) opts.body = JSON.stringify(body);
+      console.log(`🔗 API Call: ${method} ${BASE}${endpoint}`);
       const resp = await fetch(`${BASE}${endpoint}`, opts);
-      return resp.ok ? resp.json() : Promise.reject(await resp.json());
+      if (!resp.ok) {
+        const errorData = await resp.json().catch(() => ({ message: 'Error del servidor' }));
+        console.error('❌ API Error:', errorData);
+        throw errorData;
+      }
+      return resp.json();
     };
 
     const apiFallback = {
@@ -518,19 +546,139 @@ async function eliminarMinuta(id) {
   }
 }
 
-function editarVehiculo(id) {
-  // TODO: Implementar formulario de edición
-  alert('🔧 Función de edición en desarrollo');
+async function editarVehiculo(id) {
+  try {
+    const vehiculos = await window.api.getVehiculos();
+    const vehiculo = vehiculos.find(v => v.id === id);
+    if (!vehiculo) {
+      alert('❌ Vehículo no encontrado');
+      return;
+    }
+
+    const nuevoPrecio = prompt(`Nuevo precio para ${vehiculo.marca} ${vehiculo.modelo} (actual: $${vehiculo.precio?.toLocaleString() || 0}):`, vehiculo.precio || 0);
+    const nuevoEstado = prompt(`Nuevo estado (actual: ${vehiculo.estado}). Opciones: disponible, reservado, vendido:`, vehiculo.estado);
+    const nuevosKm = prompt(`Nuevo kilometraje (actual: ${vehiculo.kilometraje?.toLocaleString() || 0}):`, vehiculo.kilometraje || 0);
+    const nuevasObs = prompt(`Observaciones (actual: ${vehiculo.observaciones || 'Sin observaciones'}):`, vehiculo.observaciones || '');
+
+    if (nuevoPrecio === null && nuevoEstado === null && nuevosKm === null && nuevasObs === null) return;
+
+    const payload = { usuario_id: currentUser?.id };
+    if (nuevoPrecio && nuevoPrecio !== String(vehiculo.precio)) payload.precio = Number(nuevoPrecio);
+    if (nuevoEstado && nuevoEstado !== vehiculo.estado) payload.estado = nuevoEstado;
+    if (nuevosKm && nuevosKm !== String(vehiculo.kilometraje)) payload.kilometraje = Number(nuevosKm);
+    if (nuevasObs && nuevasObs !== vehiculo.observaciones) payload.observaciones = nuevasObs;
+
+    if (Object.keys(payload).length > 1) {
+      const BASE = getApiBase();
+      const resp = await fetch(`${BASE}/api/vehiculos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      if (resp.ok) {
+        alert('✅ Vehículo actualizado correctamente');
+        loadVehiculos();
+      } else {
+        alert('❌ Error: ' + (result.message || 'Error desconocido'));
+      }
+    } else {
+      alert('ℹ️ No se realizaron cambios');
+    }
+  } catch (error) {
+    alert('❌ Error al editar vehículo: ' + error.message);
+  }
 }
 
-function editarCliente(id) {
-  // TODO: Implementar formulario de edición
-  alert('🔧 Función de edición en desarrollo');
+async function editarCliente(id) {
+  try {
+    const clientes = await window.api.getClientes();
+    const cliente = clientes.find(c => c.id === id);
+    if (!cliente) {
+      alert('❌ Cliente no encontrado');
+      return;
+    }
+
+    const nuevoTelefono = prompt(`Nuevo teléfono para ${cliente.nombre} ${cliente.apellido} (actual: ${cliente.telefono || 'N/A'}):`, cliente.telefono || '');
+    const nuevoEmail = prompt(`Nuevo email (actual: ${cliente.email || 'N/A'}):`, cliente.email || '');
+    const nuevaDireccion = prompt(`Nueva dirección (actual: ${cliente.direccion || 'N/A'}):`, cliente.direccion || '');
+
+    if (nuevoTelefono === null && nuevoEmail === null && nuevaDireccion === null) return;
+
+    const payload = { usuario_id: currentUser?.id };
+    if (nuevoTelefono && nuevoTelefono !== cliente.telefono) payload.telefono = nuevoTelefono;
+    if (nuevoEmail && nuevoEmail !== cliente.email) payload.email = nuevoEmail;
+    if (nuevaDireccion && nuevaDireccion !== cliente.direccion) payload.direccion = nuevaDireccion;
+
+    if (Object.keys(payload).length > 1) {
+      const BASE = getApiBase();
+      const resp = await fetch(`${BASE}/api/clientes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      if (resp.ok) {
+        alert('✅ Cliente actualizado correctamente');
+        loadClientes();
+      } else {
+        alert('❌ Error: ' + (result.message || 'Error desconocido'));
+      }
+    } else {
+      alert('ℹ️ No se realizaron cambios');
+    }
+  } catch (error) {
+    alert('❌ Error al editar cliente: ' + error.message);
+  }
 }
 
-function editarMinuta(id) {
-  // TODO: Implementar formulario de edición
-  alert('🔧 Función de edición en desarrollo');
+async function editarMinuta(id) {
+  try {
+    const nuevoPrecio = prompt('Nuevo precio final (dejar vacío para no modificar):');
+    const nuevasObs = prompt('Nuevas observaciones (dejar vacío para no modificar):');
+    const nuevaReserva = prompt('Nuevo monto de reserva (dejar vacío para no modificar):');
+
+    const payload = { usuario_id: currentUser?.id };
+    if (nuevoPrecio) payload.precio_final = Number(nuevoPrecio);
+    if (nuevasObs) payload.observaciones = nuevasObs;
+    if (nuevaReserva) payload.reserva_monto = Number(nuevaReserva);
+
+    if (Object.keys(payload).length > 1) {
+      const BASE = getApiBase();
+      const resp = await fetch(`${BASE}/api/minutas/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      if (resp.ok) {
+        alert('✅ Minuta actualizada correctamente');
+        loadMinutas();
+      } else {
+        alert('❌ Error: ' + (result.message || 'Error desconocido'));
+      }
+    } else {
+      alert('ℹ️ No se realizaron cambios');
+    }
+  } catch (error) {
+    alert('❌ Error al editar minuta: ' + error.message);
+  }
+}
+
+// Helper para obtener la URL base de la API
+function getApiBase() {
+  const isCapacitor = (
+    location.protocol === 'file:' ||
+    (location.protocol === 'https:' && location.host === 'localhost') ||
+    (location.protocol === 'capacitor:') ||
+    (typeof Capacitor !== 'undefined')
+  );
+  
+  if (isCapacitor) return RAILWAY_URL;
+  if (location.protocol && location.host && location.host !== 'localhost') {
+    return `${location.protocol}//${location.host}`;
+  }
+  return 'http://localhost:4000';
 }
 
 // Inicialización
@@ -620,7 +768,7 @@ function mostrarEstadisticasAlmacenamiento() {
   console.log('Obteniendo estadísticas de almacenamiento...');
 }
 
-// Función para abrir minuta profesional
+// Función para crear minuta - ahora usa el formulario integrado
 function abrirMinutaProfesional() {
   // Navegar a la sección de minutas y abrir el formulario
   showSection('minutas');

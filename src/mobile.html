@@ -233,6 +233,75 @@
             margin-bottom: 10px;
         }
 
+        /* Responsive mejorado para móviles */
+        @media (max-width: 400px) {
+            body {
+                padding: 5px;
+            }
+            
+            .section {
+                padding: 12px;
+            }
+            
+            .section h2 {
+                font-size: 1.1em;
+            }
+            
+            .nav-btn {
+                padding: 10px 12px;
+                font-size: 0.8em;
+            }
+            
+            .btn {
+                padding: 12px;
+                font-size: 0.9em;
+            }
+            
+            .card {
+                padding: 12px;
+            }
+            
+            .card h3 {
+                font-size: 0.9em;
+            }
+            
+            .card p {
+                font-size: 0.8em;
+            }
+            
+            .form-group input,
+            .form-group select {
+                padding: 10px;
+                font-size: 14px;
+            }
+            
+            .header h1 {
+                font-size: 1.1em;
+            }
+            
+            /* Tablas responsive */
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            /* Formularios de minuta */
+            .minuta-form .form-group {
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* Scroll suave */
+        .list-container {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Prevenir zoom en inputs en iOS */
+        input, select, textarea {
+            font-size: 16px !important;
+        }
+
         @media (min-width: 768px) {
             .container {
                 max-width: 600px;
@@ -417,15 +486,18 @@
 
         <!-- Minutas -->
         <section id="minutas" class="section">
-            <h2>📋 Minutas</h2>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h2>📋 Minutas de Venta</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
                 <div></div>
-                <div>
-                    <button class="btn btn-primary" onclick="toggleMinutaForm()" style="margin-right:8px;">➕ Añadir Minuta</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="toggleMinutaForm()" style="padding:10px 15px; width:auto;">➕ Minuta Rápida</button>
+                    <button class="btn btn-success" onclick="toggleMinutaProfesional()" style="padding:10px 15px; width:auto;">📄 Minuta Profesional</button>
                 </div>
             </div>
 
+            <!-- Formulario Minuta Rápida -->
             <div id="minutaForm" style="display:none; margin-bottom:15px; background:#f1f5f9; padding:12px; border-radius:10px;">
+                <h4 style="margin:0 0 15px 0; color:#667eea;">Minuta Rápida</h4>
                 <div class="form-group">
                     <label>Vehículo</label>
                     <select id="minVehiculo"></select>
@@ -482,6 +554,245 @@
                 <button class="btn btn-secondary" onclick="toggleMinutaForm()">Cancelar</button>
             </div>
 
+            <!-- Formulario Minuta Profesional Completo -->
+            <div id="minutaProfesionalForm" style="display:none; margin-bottom:15px; background:#fff; padding:20px; border-radius:12px; border:2px solid #667eea; box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+                <div style="text-align:center; margin-bottom:20px; padding-bottom:15px; border-bottom:2px solid #667eea;">
+                    <h3 style="margin:0; color:#333; font-size:1.3em;">📄 MINUTA DE VENTA DE VEHÍCULO / MOTO</h3>
+                    <p style="margin:5px 0 0 0; color:#666; font-size:0.85em;">Documento formal de operación comercial</p>
+                </div>
+
+                <!-- A. Datos Generales -->
+                <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#667eea; font-size:1em;">📍 A. Datos Generales</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Lugar</label>
+                            <input type="text" id="mpLugar" placeholder="Ciudad, Provincia" style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Fecha</label>
+                            <input type="date" id="mpFecha" style="padding:10px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- B. Datos del Comprador -->
+                <div style="background:#e3f2fd; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#1976d2; font-size:1em;">👤 B. Datos del Comprador</h4>
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label style="font-size:0.85em;">Nombre / Razón Social *</label>
+                        <input type="text" id="mpCompradorNombre" required placeholder="Nombre completo o razón social" style="padding:10px;">
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">DNI / CUIT *</label>
+                            <input type="text" id="mpCompradorDni" required placeholder="12.345.678" style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Teléfono</label>
+                            <input type="tel" id="mpCompradorTelefono" placeholder="11-2233-4455" style="padding:10px;">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:10px 0 0 0;">
+                        <label style="font-size:0.85em;">Domicilio</label>
+                        <input type="text" id="mpCompradorDomicilio" placeholder="Calle, Número, Ciudad" style="padding:10px;">
+                    </div>
+                    <div class="form-group" style="margin:10px 0 0 0;">
+                        <label style="font-size:0.85em;">Email</label>
+                        <input type="email" id="mpCompradorEmail" placeholder="email@ejemplo.com" style="padding:10px;">
+                    </div>
+                </div>
+
+                <!-- C. Datos del Vendedor -->
+                <div style="background:#e8f5e9; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#388e3c; font-size:1em;">🏪 C. Datos del Vendedor</h4>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-size:0.85em;">Nombre del Vendedor *</label>
+                        <input type="text" id="mpVendedorNombre" required placeholder="Nombre del vendedor" style="padding:10px;">
+                    </div>
+                </div>
+
+                <!-- D. Datos del Vehículo/Moto -->
+                <div style="background:#fff3e0; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#f57c00; font-size:1em;">🚗 D. Datos del Vehículo / Moto</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Marca *</label>
+                            <input type="text" id="mpVehiculoMarca" required placeholder="Toyota, Honda..." style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Modelo *</label>
+                            <input type="text" id="mpVehiculoModelo" required placeholder="Corolla, Civic..." style="padding:10px;">
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Año *</label>
+                            <input type="number" id="mpVehiculoAnio" required placeholder="2024" style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Dominio (Patente)</label>
+                            <input type="text" id="mpVehiculoDominio" placeholder="ABC 123" style="padding:10px;">
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Número de Motor</label>
+                            <input type="text" id="mpVehiculoMotor" placeholder="Nro. Motor" style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Número de Chasis</label>
+                            <input type="text" id="mpVehiculoChasis" placeholder="Nro. Chasis" style="padding:10px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- E. Condiciones de la Operación -->
+                <div style="background:#fce4ec; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#c2185b; font-size:1em;">💳 E. Condiciones de la Operación</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondContado" name="mpCondicion"> Contado efectivo
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondReserva" name="mpCondicion" onchange="toggleReservaMonto()"> Reserva
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondAnticipo" name="mpCondicion"> Anticipo + Saldo
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondCredito" name="mpCondicion"> Crédito interno
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondFinanciacion" name="mpCondicion" onchange="toggleFinanciacionCampos()"> Financiación
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondTarjeta" name="mpCondicion" onchange="toggleTarjetaCuotas()"> Tarjeta de crédito
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondPermuta" name="mpCondicion" onchange="togglePermutaCampos()"> Permuta
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; padding:8px; background:white; border-radius:6px; cursor:pointer;">
+                            <input type="checkbox" id="mpCondOtro" name="mpCondicion" onchange="toggleOtroCampo()"> Otro
+                        </label>
+                    </div>
+                    
+                    <!-- Campos condicionales -->
+                    <div id="mpReservaMontoBox" style="display:none; margin-top:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Monto de Reserva</label>
+                            <input type="number" id="mpReservaMonto" placeholder="Monto reserva" style="padding:10px;">
+                        </div>
+                    </div>
+                    
+                    <div id="mpFinanciacionBox" style="display:none; margin-top:10px; background:white; padding:10px; border-radius:6px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <div class="form-group" style="margin:0;">
+                                <label style="font-size:0.85em;">Financiera</label>
+                                <input type="text" id="mpFinanciera" placeholder="Nombre financiera" style="padding:10px;">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label style="font-size:0.85em;">Cantidad de Cuotas</label>
+                                <input type="number" id="mpFinCuotas" placeholder="12, 24, 36..." style="padding:10px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="mpTarjetaCuotasBox" style="display:none; margin-top:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Cuotas con Tarjeta</label>
+                            <input type="number" id="mpTarjetaCuotas" placeholder="3, 6, 12..." style="padding:10px;">
+                        </div>
+                    </div>
+                    
+                    <div id="mpPermutaBox" style="display:none; margin-top:10px; background:white; padding:10px; border-radius:6px;">
+                        <div class="form-group" style="margin:0 0 10px 0;">
+                            <label style="font-size:0.85em;">Datos del vehículo entregado en permuta</label>
+                            <input type="text" id="mpPermutaDatos" placeholder="Marca, Modelo, Año, Dominio" style="padding:10px;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Valor de tasación</label>
+                            <input type="number" id="mpPermutaValor" placeholder="Valor en $" style="padding:10px;">
+                        </div>
+                    </div>
+                    
+                    <div id="mpOtroBox" style="display:none; margin-top:10px;">
+                        <div class="form-group" style="margin:0;">
+                            <label style="font-size:0.85em;">Especificar otra condición</label>
+                            <input type="text" id="mpOtroTexto" placeholder="Describir condición" style="padding:10px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- F. Precio Total de Venta -->
+                <div style="background:#e8eaf6; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#3f51b5; font-size:1em;">💰 F. Precio Total de Venta</h4>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-size:0.85em;">Monto Final *</label>
+                        <input type="number" id="mpPrecioFinal" required placeholder="0" style="padding:12px; font-size:1.1em; font-weight:bold;">
+                    </div>
+                </div>
+
+                <!-- G. Observaciones -->
+                <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#616161; font-size:1em;">📝 G. Observaciones</h4>
+                    <div class="form-group" style="margin:0;">
+                        <textarea id="mpObservaciones" rows="3" placeholder="Observaciones adicionales, acuerdos especiales, etc." style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; resize:vertical;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Firmas Digitales -->
+                <div style="background:#fff9c4; padding:15px; border-radius:8px; margin-bottom:15px;">
+                    <h4 style="margin:0 0 12px 0; color:#f9a825; font-size:1em;">✍️ Firmas Digitales</h4>
+                    <p style="font-size:0.8em; color:#666; margin-bottom:10px;">⚠️ Las firmas solo pueden ser editadas por administradores premium</p>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                        <div>
+                            <label style="font-size:0.85em; display:block; margin-bottom:5px;">Firma del Vendedor</label>
+                            <canvas id="mpFirmaVendedor" style="width:100%; height:100px; border:2px dashed #ccc; border-radius:8px; background:white;" onclick="abrirFirma('vendedor')"></canvas>
+                            <button type="button" class="btn btn-secondary firma-btn" style="margin-top:5px; padding:6px 10px; font-size:0.8em; width:100%;" onclick="abrirFirma('vendedor')" id="btnFirmaVendedor" disabled>✍️ Firmar</button>
+                        </div>
+                        <div>
+                            <label style="font-size:0.85em; display:block; margin-bottom:5px;">Firma del Comprador</label>
+                            <canvas id="mpFirmaComprador" style="width:100%; height:100px; border:2px dashed #ccc; border-radius:8px; background:white;" onclick="abrirFirma('comprador')"></canvas>
+                            <button type="button" class="btn btn-secondary firma-btn" style="margin-top:5px; padding:6px 10px; font-size:0.8em; width:100%;" onclick="abrirFirma('comprador')" id="btnFirmaComprador" disabled>✍️ Firmar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de acción -->
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="guardarMinutaProfesional()" style="flex:1; min-width:120px;">💾 Guardar Minuta</button>
+                    <button class="btn btn-primary" onclick="previsualizarMinuta()" style="flex:1; min-width:120px;">👁️ Previsualizar</button>
+                    <button class="btn btn-secondary" onclick="toggleMinutaProfesional()" style="flex:1; min-width:120px;">❌ Cancelar</button>
+                </div>
+            </div>
+
+            <!-- Modal de Firma -->
+            <div id="firmaModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:9999; padding:20px;">
+                <div style="background:white; border-radius:12px; max-width:400px; margin:50px auto; padding:20px;">
+                    <h4 style="margin:0 0 15px 0; text-align:center;">✍️ Dibujar Firma</h4>
+                    <canvas id="firmaCanvas" width="350" height="150" style="border:2px solid #667eea; border-radius:8px; width:100%; touch-action:none;"></canvas>
+                    <div style="display:flex; gap:10px; margin-top:15px;">
+                        <button class="btn btn-success" onclick="confirmarFirma()" style="flex:1;">✅ Confirmar</button>
+                        <button class="btn btn-secondary" onclick="limpiarFirma()" style="flex:1;">🔄 Limpiar</button>
+                        <button class="btn btn-danger" onclick="cerrarFirma()" style="flex:1;">❌ Cancelar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal de Previsualización -->
+            <div id="previsualizacionModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index:9999; padding:10px; overflow-y:auto;">
+                <div style="background:white; border-radius:12px; max-width:600px; margin:20px auto; padding:25px;">
+                    <div id="previsualizacionContenido"></div>
+                    <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="imprimirMinuta()" style="flex:1; min-width:100px;">🖨️ Imprimir</button>
+                        <button class="btn btn-success" onclick="exportarPDF()" style="flex:1; min-width:100px;">📄 Exportar PDF</button>
+                        <button class="btn btn-secondary" onclick="cerrarPrevisualizacion()" style="flex:1; min-width:100px;">❌ Cerrar</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="list-container" id="minutasList">
                 <p class="empty-message">Cargando minutas...</p>
             </div>
@@ -490,22 +801,54 @@
         <!-- Usuarios (Premium) -->
         <section id="usuarios" class="section">
             <h2>👤 Control de Usuarios</h2>
-            <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
-                <button class="btn btn-primary" onclick="cargarAlertasRecientes()">🔔 Alertas recientes</button>
-                <button class="btn btn-secondary" onclick="cargarNotificaciones()">📨 Notificaciones</button>
+            
+            <!-- Resumen de Actividad en Tiempo Real -->
+            <div id="actividadResumen" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; padding:15px; border-radius:10px; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0;">📊 Resumen de Actividad</h4>
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; font-size:0.85em;">
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="totalUsuarios">-</div>
+                        <div>Usuarios</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="usuariosActivos">-</div>
+                        <div>Activos Hoy</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="minutasHoy">-</div>
+                        <div>Minutas Hoy</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.2); padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:1.5em; font-weight:bold;" id="accionesHoy">-</div>
+                        <div>Acciones Hoy</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+                <button class="btn btn-primary" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="cargarAlertasRecientes()">🔔 Alertas</button>
+                <button class="btn btn-secondary" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="cargarNotificaciones()">📨 Notificaciones</button>
+                <button class="btn btn-success" style="flex:1; min-width:100px; padding:10px; font-size:0.85em;" onclick="actualizarResumenActividad()">🔄 Actualizar</button>
             </div>
 
-            <div id="alertasBox" style="display:none; margin-bottom:12px;">
-                <h4>🔔 Alertas Premium</h4>
-                <div class="list-container" id="alertasList"></div>
+            <div id="alertasBox" style="display:none; margin-bottom:12px; background:#fff3cd; padding:10px; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0;">🔔 Alertas Premium</h4>
+                    <button onclick="document.getElementById('alertasBox').style.display='none'" style="background:none; border:none; font-size:1.2em; cursor:pointer;">✕</button>
+                </div>
+                <div class="list-container" id="alertasList" style="max-height:200px;"></div>
             </div>
 
-            <div id="notificacionesBox" style="display:none; margin-bottom:12px;">
-                <h4>📨 Notificaciones</h4>
-                <div class="list-container" id="notificacionesList"></div>
+            <div id="notificacionesBox" style="display:none; margin-bottom:12px; background:#d4edda; padding:10px; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0;">📨 Notificaciones</h4>
+                    <button onclick="document.getElementById('notificacionesBox').style.display='none'" style="background:none; border:none; font-size:1.2em; cursor:pointer;">✕</button>
+                </div>
+                <div class="list-container" id="notificacionesList" style="max-height:200px;"></div>
             </div>
 
-            <div class="list-container" id="usuariosList">
+            <h4 style="margin:10px 0;">👥 Usuarios Registrados</h4>
+            <div class="list-container" id="usuariosList" style="max-height:none;">
                 <p class="empty-message">Cargando usuarios...</p>
             </div>
         </section>
@@ -725,17 +1068,24 @@
             try {
                 const vehiculos = await apiCall('/api/vehiculos');
                 const container = document.getElementById('vehiculosList');
+                const esAdmin = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin');
                 
                 container.innerHTML = vehiculos.length ? vehiculos.map(v => `
-                    <div class="card" style="display:flex; gap:12px; align-items:center;">
-                        <div style="width:110px; flex: 0 0 110px; display:flex; align-items:center; justify-content:center;">
-                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:100px; height:80px; border-radius:8px;">
+                    <div class="card" style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+                        <div style="width:90px; flex: 0 0 90px; display:flex; align-items:center; justify-content:center;">
+                            <img src="${v.imagen || '/assets/logo.png'}" onerror="this.onerror=null;this.src='/assets/logo.svg'" alt="${v.marca} ${v.modelo}" class="circular-thumb" style="width:80px; height:65px; border-radius:8px; object-fit:cover;">
                         </div>
-                        <div style="flex:1;">
-                            <h3>${v.marca} ${v.modelo} ${v.version || ''}</h3>
-                            <p><strong>Año:</strong> ${v.anio}</p>
-                            <p><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
-                            <p><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                        <div style="flex:1; min-width:150px;">
+                            <h3 style="font-size:0.95em; margin-bottom:4px;">${v.marca} ${v.modelo} ${v.version || ''}</h3>
+                            <p style="margin:2px 0;"><strong>Año:</strong> ${v.anio} | <strong>Km:</strong> ${v.kilometraje?.toLocaleString() || 'N/A'}</p>
+                            <p style="margin:2px 0;"><strong>Precio:</strong> $${v.precio?.toLocaleString() || 'N/A'}</p>
+                            <p style="margin:2px 0;"><strong>Estado:</strong> <span class="estado-${v.estado}">${v.estado}</span></p>
+                            ${esAdmin ? `
+                                <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                    <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="editarVehiculoPrompt(${v.id}, '${v.marca}', '${v.modelo}', ${v.precio || 0}, '${v.estado}')">✏️ Editar</button>
+                                    <button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="eliminarVehiculo(${v.id})">🗑️</button>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 `).join('') : '<p class="empty-message">No hay vehículos</p>';
@@ -748,16 +1098,81 @@
             try {
                 const clientes = await apiCall('/api/clientes');
                 const container = document.getElementById('clientesList');
+                const esAdmin = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador' || currentUser.rol === 'admin');
                 
                 container.innerHTML = clientes.length ? clientes.map(c => `
                     <div class="card">
-                        <h3>${c.nombre} ${c.apellido}</h3>
-                        <p><strong>DNI:</strong> ${c.dni}</p>
-                        <p><strong>Tel:</strong> ${c.telefono || 'N/A'}</p>
+                        <h3 style="font-size:0.95em;">${c.nombre} ${c.apellido}</h3>
+                        <p style="margin:2px 0;"><strong>DNI:</strong> ${c.dni}</p>
+                        <p style="margin:2px 0;"><strong>Tel:</strong> ${c.telefono || 'N/A'}</p>
+                        <p style="margin:2px 0;"><strong>Email:</strong> ${c.email || 'N/A'}</p>
+                        ${esAdmin ? `
+                            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="editarClientePrompt(${c.id}, '${c.nombre}', '${c.apellido}', '${c.telefono || ''}')">✏️ Editar</button>
+                                <button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="eliminarCliente(${c.id})">🗑️</button>
+                            </div>
+                        ` : ''}
                     </div>
                 `).join('') : '<p class="empty-message">No hay clientes</p>';
             } catch (e) {
                 document.getElementById('clientesList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+        
+        // Funciones de edición de vehículos y clientes
+        function editarVehiculoPrompt(id, marca, modelo, precio, estado) {
+            const nuevoPrecio = prompt(`Nuevo precio para ${marca} ${modelo} (actual: $${precio.toLocaleString()}):`, precio);
+            const nuevoEstado = prompt(`Nuevo estado (actual: ${estado}). Opciones: disponible, reservado, vendido:`, estado);
+            
+            if (nuevoPrecio === null && nuevoEstado === null) return;
+            
+            const payload = { usuario_id: currentUser?.id };
+            if (nuevoPrecio && nuevoPrecio !== String(precio)) payload.precio = Number(nuevoPrecio);
+            if (nuevoEstado && nuevoEstado !== estado) payload.estado = nuevoEstado;
+            
+            if (Object.keys(payload).length > 1) {
+                apiCall(`/api/vehiculos/${id}`, 'PUT', payload).then(res => {
+                    alert('✅ Vehículo actualizado');
+                    cargarVehiculos();
+                }).catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+        
+        function editarClientePrompt(id, nombre, apellido, telefono) {
+            const nuevoTelefono = prompt(`Nuevo teléfono para ${nombre} ${apellido} (actual: ${telefono}):`, telefono);
+            
+            if (nuevoTelefono === null) return;
+            
+            const payload = { usuario_id: currentUser?.id };
+            if (nuevoTelefono && nuevoTelefono !== telefono) payload.telefono = nuevoTelefono;
+            
+            if (Object.keys(payload).length > 1) {
+                apiCall(`/api/clientes/${id}`, 'PUT', payload).then(res => {
+                    alert('✅ Cliente actualizado');
+                    cargarClientes();
+                }).catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+        
+        async function eliminarVehiculo(id) {
+            if (!confirm('¿Eliminar este vehículo?')) return;
+            try {
+                await apiCall(`/api/vehiculos/${id}`, 'DELETE', { usuario_id: currentUser?.id });
+                alert('✅ Vehículo eliminado');
+                cargarVehiculos();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        async function eliminarCliente(id) {
+            if (!confirm('¿Eliminar este cliente?')) return;
+            try {
+                await apiCall(`/api/clientes/${id}`, 'DELETE', { usuario_id: currentUser?.id });
+                alert('✅ Cliente eliminado');
+                cargarClientes();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
             }
         }
 
@@ -906,26 +1321,110 @@
                 const usuarios = await apiCall('/api/usuarios/todos');
                 const container = document.getElementById('usuariosList');
                 
-                container.innerHTML = usuarios.map(u => `
-                    <div class="card usuario-card ${u.habilitado ? 'activo' : 'suspendido'}">
-                        <h3>${u.nombre}</h3>
-                        <p><strong>Email:</strong> ${u.email}</p>
-                        <p><strong>Rol:</strong> ${u.rol}</p>
-                        <p><strong>Estado:</strong> ${u.habilitado ? '🟢 Activo' : '🔴 Suspendido'}</p>
-                        ${!u.es_premium ? `
-                            ${u.habilitado ? 
-                                `<button class="btn btn-danger" style="margin-top:10px" onclick="suspenderUsuario(${u.id})">Suspender</button>` :
-                                `<button class="btn btn-success" style="margin-top:10px" onclick="reactivarUsuario(${u.id})">Reactivar</button>`
-                            }
-                        ` : ''}
-                        <div style="margin-top:10px; display:flex; gap:8px;">
-                            <button class="btn btn-secondary" onclick="verSesiones(${u.id})">🕒 Ver Sesiones</button>
-                            <button class="btn btn-secondary" onclick="verNavegacion(${u.id})">📍 Ver Navegación</button>
+                // Actualizar resumen
+                actualizarResumenActividad();
+                
+                container.innerHTML = usuarios.length ? usuarios.map(u => `
+                    <div class="card usuario-card ${u.habilitado ? 'activo' : 'suspendido'}" style="margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+                            <div style="flex:1; min-width:150px;">
+                                <h3 style="margin:0 0 5px 0; font-size:1em;">${u.es_premium ? '⭐ ' : ''}${u.nombre}</h3>
+                                <p style="margin:2px 0; font-size:0.85em;"><strong>Email:</strong> ${u.email}</p>
+                                <p style="margin:2px 0; font-size:0.85em;"><strong>Rol:</strong> ${u.rol}</p>
+                                <p style="margin:2px 0; font-size:0.85em;">
+                                    <strong>Estado:</strong> ${u.habilitado ? '<span style="color:#28a745">🟢 Activo</span>' : '<span style="color:#dc3545">🔴 Suspendido</span>'}
+                                </p>
+                                ${u.ultima_actividad ? `<p style="margin:2px 0; font-size:0.8em; color:#666;">📅 Última actividad: ${new Date(u.ultima_actividad).toLocaleString()}</p>` : ''}
+                                ${u.minutas_count !== undefined ? `<p style="margin:2px 0; font-size:0.85em;">📋 Minutas: <strong>${u.minutas_count || 0}</strong></p>` : ''}
+                            </div>
                         </div>
+                        ${!u.es_premium ? `
+                            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                                ${u.habilitado ? 
+                                    `<button class="btn btn-danger" style="padding:8px 12px; width:auto; font-size:0.8em; flex:1;" onclick="suspenderUsuario(${u.id})">🚫 Suspender</button>` :
+                                    `<button class="btn btn-success" style="padding:8px 12px; width:auto; font-size:0.8em; flex:1;" onclick="reactivarUsuario(${u.id})">✅ Reactivar</button>`
+                                }
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verSesiones(${u.id})">🕒 Sesiones</button>
+                                <button class="btn btn-secondary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verNavegacion(${u.id})">📍 Navegación</button>
+                                <button class="btn btn-primary" style="padding:8px 12px; width:auto; font-size:0.8em;" onclick="verResumenUsuario(${u.id}, '${u.nombre}')">📊 Resumen</button>
+                            </div>
+                        ` : '<p style="font-size:0.8em; color:#667eea; margin-top:8px;">👑 Usuario Premium (Administrador Principal)</p>'}
                     </div>
-                `).join('');
+                `).join('') : '<p class="empty-message">No hay usuarios registrados</p>';
             } catch (e) {
-                document.getElementById('usuariosList').innerHTML = '<p class="empty-message">Error al cargar</p>';
+                document.getElementById('usuariosList').innerHTML = '<p class="empty-message">Error al cargar usuarios</p>';
+            }
+        }
+        
+        async function actualizarResumenActividad() {
+            try {
+                const [usuarios, minutas, auditoria] = await Promise.all([
+                    apiCall('/api/usuarios/todos').catch(() => []),
+                    apiCall('/api/minutas').catch(() => []),
+                    apiCall('/api/auditoria').catch(() => [])
+                ]);
+                
+                const hoy = new Date().toDateString();
+                
+                // Total usuarios
+                document.getElementById('totalUsuarios').textContent = usuarios.length || 0;
+                
+                // Usuarios activos hoy (basado en última actividad)
+                const activosHoy = usuarios.filter(u => u.ultima_actividad && new Date(u.ultima_actividad).toDateString() === hoy).length;
+                document.getElementById('usuariosActivos').textContent = activosHoy;
+                
+                // Minutas de hoy
+                const minutasHoy = minutas.filter(m => m.fecha_creacion && new Date(m.fecha_creacion).toDateString() === hoy).length;
+                document.getElementById('minutasHoy').textContent = minutasHoy;
+                
+                // Acciones de hoy
+                const accionesHoy = auditoria.filter(a => {
+                    const fecha = a.fecha_dispositivo || a.fecha_accion;
+                    return fecha && new Date(fecha).toDateString() === hoy;
+                }).length;
+                document.getElementById('accionesHoy').textContent = accionesHoy;
+                
+            } catch (e) {
+                console.error('Error actualizando resumen:', e);
+            }
+        }
+        
+        async function verResumenUsuario(usuarioId, nombre) {
+            try {
+                const [sesiones, navegacion] = await Promise.all([
+                    apiCall(`/api/tracking/sesiones/${usuarioId}`).catch(() => []),
+                    apiCall(`/api/tracking/navegacion/${usuarioId}`).catch(() => [])
+                ]);
+                
+                const totalSesiones = sesiones.length;
+                const ultimaSesion = sesiones[0] ? new Date(sesiones[0].fecha_login).toLocaleString() : 'Nunca';
+                const totalNavegaciones = navegacion.length;
+                
+                // Contar secciones más visitadas
+                const seccionesCount = {};
+                navegacion.forEach(n => {
+                    seccionesCount[n.seccion_visitada] = (seccionesCount[n.seccion_visitada] || 0) + 1;
+                });
+                const topSecciones = Object.entries(seccionesCount)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([s, c]) => `${s}: ${c}`)
+                    .join(', ') || 'Sin datos';
+                
+                const html = `
+                    <div class="card" style="background:#e3f2fd;">
+                        <h3>📊 Resumen de ${nombre}</h3>
+                        <p><strong>Total sesiones:</strong> ${totalSesiones}</p>
+                        <p><strong>Última sesión:</strong> ${ultimaSesion}</p>
+                        <p><strong>Total navegaciones:</strong> ${totalNavegaciones}</p>
+                        <p><strong>Secciones más visitadas:</strong> ${topSecciones}</p>
+                    </div>
+                `;
+                
+                document.getElementById('alertasBox').style.display = 'block';
+                document.getElementById('alertasList').innerHTML = html;
+            } catch (e) {
+                alert('❌ Error al obtener resumen: ' + e.message);
             }
         }
 
@@ -1174,6 +1673,424 @@
             } catch (e) {
                 alert('❌ Error: ' + e.message);
             }
+        }
+
+        // ========================================
+        // MINUTA PROFESIONAL - Funciones
+        // ========================================
+        
+        let firmaActual = null; // 'vendedor' o 'comprador'
+        let firmaContext = null;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        function toggleMinutaProfesional() {
+            const form = document.getElementById('minutaProfesionalForm');
+            const isVisible = form.style.display !== 'none';
+            form.style.display = isVisible ? 'none' : 'block';
+            
+            if (!isVisible) {
+                // Inicializar fecha con hoy
+                document.getElementById('mpFecha').value = new Date().toISOString().split('T')[0];
+                // Inicializar vendedor con usuario actual
+                if (currentUser) {
+                    document.getElementById('mpVendedorNombre').value = currentUser.nombre || '';
+                }
+                // Habilitar botones de firma según rol
+                actualizarPermisosFirma();
+            }
+        }
+
+        function actualizarPermisosFirma() {
+            const esAdminPremium = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador');
+            const btnVendedor = document.getElementById('btnFirmaVendedor');
+            const btnComprador = document.getElementById('btnFirmaComprador');
+            
+            if (esAdminPremium) {
+                btnVendedor.disabled = false;
+                btnComprador.disabled = false;
+                btnVendedor.style.opacity = '1';
+                btnComprador.style.opacity = '1';
+            } else {
+                btnVendedor.disabled = true;
+                btnComprador.disabled = true;
+                btnVendedor.style.opacity = '0.5';
+                btnComprador.style.opacity = '0.5';
+            }
+        }
+
+        // Campos condicionales
+        function toggleReservaMonto() {
+            const box = document.getElementById('mpReservaMontoBox');
+            box.style.display = document.getElementById('mpCondReserva').checked ? 'block' : 'none';
+        }
+
+        function toggleFinanciacionCampos() {
+            const box = document.getElementById('mpFinanciacionBox');
+            box.style.display = document.getElementById('mpCondFinanciacion').checked ? 'block' : 'none';
+        }
+
+        function toggleTarjetaCuotas() {
+            const box = document.getElementById('mpTarjetaCuotasBox');
+            box.style.display = document.getElementById('mpCondTarjeta').checked ? 'block' : 'none';
+        }
+
+        function togglePermutaCampos() {
+            const box = document.getElementById('mpPermutaBox');
+            box.style.display = document.getElementById('mpCondPermuta').checked ? 'block' : 'none';
+        }
+
+        function toggleOtroCampo() {
+            const box = document.getElementById('mpOtroBox');
+            box.style.display = document.getElementById('mpCondOtro').checked ? 'block' : 'none';
+        }
+
+        // Firma Digital
+        function abrirFirma(tipo) {
+            const esAdminPremium = currentUser && (currentUser.es_premium || currentUser.super_admin || currentUser.rol === 'administrador');
+            if (!esAdminPremium) {
+                alert('⚠️ Solo administradores premium pueden editar firmas');
+                return;
+            }
+            
+            firmaActual = tipo;
+            document.getElementById('firmaModal').style.display = 'block';
+            
+            const canvas = document.getElementById('firmaCanvas');
+            firmaContext = canvas.getContext('2d');
+            firmaContext.fillStyle = 'white';
+            firmaContext.fillRect(0, 0, canvas.width, canvas.height);
+            firmaContext.strokeStyle = '#333';
+            firmaContext.lineWidth = 2;
+            firmaContext.lineCap = 'round';
+            
+            // Event listeners para dibujar
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+            
+            // Touch events
+            canvas.addEventListener('touchstart', handleTouchStart);
+            canvas.addEventListener('touchmove', handleTouchMove);
+            canvas.addEventListener('touchend', stopDrawing);
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = e.target.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            firmaContext.beginPath();
+            firmaContext.moveTo(lastX, lastY);
+            firmaContext.lineTo(x, y);
+            firmaContext.stroke();
+            
+            lastX = x;
+            lastY = y;
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            isDrawing = true;
+            lastX = touch.clientX - rect.left;
+            lastY = touch.clientY - rect.top;
+        }
+
+        function handleTouchMove(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            firmaContext.beginPath();
+            firmaContext.moveTo(lastX, lastY);
+            firmaContext.lineTo(x, y);
+            firmaContext.stroke();
+            
+            lastX = x;
+            lastY = y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function limpiarFirma() {
+            const canvas = document.getElementById('firmaCanvas');
+            firmaContext.fillStyle = 'white';
+            firmaContext.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function confirmarFirma() {
+            const canvas = document.getElementById('firmaCanvas');
+            const dataURL = canvas.toDataURL('image/png');
+            
+            // Copiar al canvas correspondiente
+            const targetCanvas = document.getElementById(firmaActual === 'vendedor' ? 'mpFirmaVendedor' : 'mpFirmaComprador');
+            const targetCtx = targetCanvas.getContext('2d');
+            
+            const img = new Image();
+            img.onload = function() {
+                targetCanvas.width = targetCanvas.offsetWidth;
+                targetCanvas.height = targetCanvas.offsetHeight;
+                targetCtx.drawImage(img, 0, 0, targetCanvas.width, targetCanvas.height);
+            };
+            img.src = dataURL;
+            
+            cerrarFirma();
+        }
+
+        function cerrarFirma() {
+            document.getElementById('firmaModal').style.display = 'none';
+            firmaActual = null;
+        }
+
+        // Obtener condiciones seleccionadas
+        function obtenerCondiciones() {
+            const condiciones = [];
+            if (document.getElementById('mpCondContado').checked) condiciones.push('Contado efectivo');
+            if (document.getElementById('mpCondReserva').checked) {
+                const monto = document.getElementById('mpReservaMonto').value;
+                condiciones.push(`Reserva ($${Number(monto).toLocaleString() || 0})`);
+            }
+            if (document.getElementById('mpCondAnticipo').checked) condiciones.push('Anticipo + Saldo pendiente');
+            if (document.getElementById('mpCondCredito').checked) condiciones.push('Crédito interno');
+            if (document.getElementById('mpCondFinanciacion').checked) {
+                const financiera = document.getElementById('mpFinanciera').value;
+                const cuotas = document.getElementById('mpFinCuotas').value;
+                condiciones.push(`Financiación: ${financiera || 'N/A'} - ${cuotas || 0} cuotas`);
+            }
+            if (document.getElementById('mpCondTarjeta').checked) {
+                const cuotas = document.getElementById('mpTarjetaCuotas').value;
+                condiciones.push(`Tarjeta de crédito: ${cuotas || 0} cuotas`);
+            }
+            if (document.getElementById('mpCondPermuta').checked) {
+                const datos = document.getElementById('mpPermutaDatos').value;
+                const valor = document.getElementById('mpPermutaValor').value;
+                condiciones.push(`Permuta: ${datos || 'N/A'} - Valor: $${Number(valor).toLocaleString() || 0}`);
+            }
+            if (document.getElementById('mpCondOtro').checked) {
+                const otro = document.getElementById('mpOtroTexto').value;
+                condiciones.push(`Otro: ${otro || 'N/A'}`);
+            }
+            return condiciones;
+        }
+
+        // Recopilar datos del formulario
+        function recopilarDatosMinuta() {
+            return {
+                lugar: document.getElementById('mpLugar').value,
+                fecha: document.getElementById('mpFecha').value,
+                comprador: {
+                    nombre: document.getElementById('mpCompradorNombre').value,
+                    dni: document.getElementById('mpCompradorDni').value,
+                    domicilio: document.getElementById('mpCompradorDomicilio').value,
+                    telefono: document.getElementById('mpCompradorTelefono').value,
+                    email: document.getElementById('mpCompradorEmail').value
+                },
+                vendedor: {
+                    nombre: document.getElementById('mpVendedorNombre').value
+                },
+                vehiculo: {
+                    marca: document.getElementById('mpVehiculoMarca').value,
+                    modelo: document.getElementById('mpVehiculoModelo').value,
+                    anio: document.getElementById('mpVehiculoAnio').value,
+                    dominio: document.getElementById('mpVehiculoDominio').value,
+                    motor: document.getElementById('mpVehiculoMotor').value,
+                    chasis: document.getElementById('mpVehiculoChasis').value
+                },
+                condiciones: obtenerCondiciones(),
+                precioFinal: document.getElementById('mpPrecioFinal').value,
+                observaciones: document.getElementById('mpObservaciones').value,
+                firmaVendedor: document.getElementById('mpFirmaVendedor').toDataURL?.() || null,
+                firmaComprador: document.getElementById('mpFirmaComprador').toDataURL?.() || null
+            };
+        }
+
+        // Validar campos obligatorios
+        function validarMinutaProfesional(datos) {
+            if (!datos.comprador.nombre) return 'Falta nombre del comprador';
+            if (!datos.comprador.dni) return 'Falta DNI/CUIT del comprador';
+            if (!datos.vendedor.nombre) return 'Falta nombre del vendedor';
+            if (!datos.vehiculo.marca) return 'Falta marca del vehículo';
+            if (!datos.vehiculo.modelo) return 'Falta modelo del vehículo';
+            if (!datos.vehiculo.anio) return 'Falta año del vehículo';
+            if (!datos.precioFinal) return 'Falta precio final de venta';
+            return null;
+        }
+
+        // Guardar minuta profesional
+        async function guardarMinutaProfesional() {
+            const datos = recopilarDatosMinuta();
+            const error = validarMinutaProfesional(datos);
+            
+            if (error) {
+                alert('⚠️ ' + error);
+                return;
+            }
+
+            try {
+                const payload = {
+                    lugar: datos.lugar,
+                    fecha: datos.fecha,
+                    comprador: datos.comprador,
+                    vendedor: datos.vendedor,
+                    vehiculo: datos.vehiculo,
+                    operacion: {
+                        condiciones: datos.condiciones,
+                        precioFinal: Number(datos.precioFinal)
+                    },
+                    observaciones: datos.observaciones,
+                    firmaVendedor: datos.firmaVendedor,
+                    firmaComprador: datos.firmaComprador,
+                    estado: 'activa',
+                    usuario_id: currentUser?.id
+                };
+
+                const result = await apiCall('/api/minutas/detallada', 'POST', payload);
+                
+                if (result && result.minuta_id) {
+                    alert('✅ Minuta profesional guardada correctamente');
+                    toggleMinutaProfesional();
+                    cargarMinutas();
+                } else {
+                    alert('❌ ' + (result.message || 'Error al guardar minuta'));
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+
+        // Previsualizar minuta
+        function previsualizarMinuta() {
+            const datos = recopilarDatosMinuta();
+            const error = validarMinutaProfesional(datos);
+            
+            if (error) {
+                alert('⚠️ ' + error);
+                return;
+            }
+
+            const html = generarHTMLMinuta(datos);
+            document.getElementById('previsualizacionContenido').innerHTML = html;
+            document.getElementById('previsualizacionModal').style.display = 'block';
+        }
+
+        function generarHTMLMinuta(datos) {
+            const fechaFormateada = datos.fecha ? new Date(datos.fecha).toLocaleDateString('es-AR') : 'N/A';
+            
+            return `
+                <div style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4;">
+                    <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px;">
+                        <h2 style="margin: 0; font-size: 18px;">MINUTA DE VENTA DE VEHÍCULO</h2>
+                        <p style="margin: 5px 0 0 0; color: #666;">De Grazia - Automotores</p>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <p><strong>Lugar:</strong> ${datos.lugar || 'N/A'} | <strong>Fecha:</strong> ${fechaFormateada}</p>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">DATOS DEL COMPRADOR</h4>
+                        <p style="margin: 3px 0;"><strong>Nombre:</strong> ${datos.comprador.nombre}</p>
+                        <p style="margin: 3px 0;"><strong>DNI/CUIT:</strong> ${datos.comprador.dni}</p>
+                        <p style="margin: 3px 0;"><strong>Domicilio:</strong> ${datos.comprador.domicilio || 'N/A'}</p>
+                        <p style="margin: 3px 0;"><strong>Tel:</strong> ${datos.comprador.telefono || 'N/A'} | <strong>Email:</strong> ${datos.comprador.email || 'N/A'}</p>
+                    </div>
+
+                    <div style="background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">DATOS DEL VENDEDOR</h4>
+                        <p style="margin: 3px 0;"><strong>Nombre:</strong> ${datos.vendedor.nombre}</p>
+                    </div>
+
+                    <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">DATOS DEL VEHÍCULO</h4>
+                        <p style="margin: 3px 0;"><strong>Marca:</strong> ${datos.vehiculo.marca} | <strong>Modelo:</strong> ${datos.vehiculo.modelo} | <strong>Año:</strong> ${datos.vehiculo.anio}</p>
+                        <p style="margin: 3px 0;"><strong>Dominio:</strong> ${datos.vehiculo.dominio || 'N/A'}</p>
+                        <p style="margin: 3px 0;"><strong>Motor:</strong> ${datos.vehiculo.motor || 'N/A'} | <strong>Chasis:</strong> ${datos.vehiculo.chasis || 'N/A'}</p>
+                    </div>
+
+                    <div style="background: #fce4ec; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">CONDICIONES DE LA OPERACIÓN</h4>
+                        ${datos.condiciones.length ? datos.condiciones.map(c => `<p style="margin: 3px 0;">• ${c}</p>`).join('') : '<p>Sin condiciones especificadas</p>'}
+                    </div>
+
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 15px; text-align: center;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">PRECIO TOTAL DE VENTA</h4>
+                        <p style="font-size: 24px; font-weight: bold; margin: 0; color: #1976d2;">$${Number(datos.precioFinal).toLocaleString('es-AR')}</p>
+                    </div>
+
+                    ${datos.observaciones ? `
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 8px 0; color: #333;">OBSERVACIONES</h4>
+                        <p style="margin: 0;">${datos.observaciones}</p>
+                    </div>
+                    ` : ''}
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #ccc;">
+                        <div style="text-align: center; flex: 1;">
+                            <div style="border-bottom: 1px solid #333; height: 60px; margin-bottom: 5px;"></div>
+                            <p style="margin: 0; font-size: 11px;"><strong>Firma del Vendedor</strong></p>
+                        </div>
+                        <div style="width: 40px;"></div>
+                        <div style="text-align: center; flex: 1;">
+                            <div style="border-bottom: 1px solid #333; height: 60px; margin-bottom: 5px;"></div>
+                            <p style="margin: 0; font-size: 11px;"><strong>Firma del Comprador</strong></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function cerrarPrevisualizacion() {
+            document.getElementById('previsualizacionModal').style.display = 'none';
+        }
+
+        function imprimirMinuta() {
+            const contenido = document.getElementById('previsualizacionContenido').innerHTML;
+            const ventana = window.open('', '_blank');
+            ventana.document.write(`
+                <html>
+                <head>
+                    <title>Minuta de Venta</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        @media print {
+                            body { padding: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${contenido}
+                    <script>window.print(); window.close();</script>
+                </body>
+                </html>
+            `);
+            ventana.document.close();
+        }
+
+        function exportarPDF() {
+            // Para una implementación real se usaría una librería como jsPDF
+            // Por ahora usamos la función de impresión que permite guardar como PDF
+            alert('💡 En la ventana de impresión, selecciona "Guardar como PDF" como destino');
+            imprimirMinuta();
         }
     </script>
 </body>
