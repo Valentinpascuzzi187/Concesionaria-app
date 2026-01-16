@@ -11,12 +11,26 @@
   },
   "android": {
     "allowMixedContent": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": false,
+    "hardwareAcceleration": true,
+    "scrollIsBouncy": false,
+    "backgroundColor": "#000000"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 0,
-      "launchAutoHide": true
+      "launchAutoHide": true,
+      "backgroundColor": "#ffffff",
+      "androidScaleType": "CENTER_CROP",
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "light",
+      "backgroundColor": "#1a1a1a",
+      "overlaysWebView": false
+    },
+    "SafeArea": {
+      "offset": 0
     }
   }
 }

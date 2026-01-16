@@ -2,9 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4a90e2">
+  <meta name="color-scheme" content="light dark">
   <title>Concesionaria - Sistema de Gestión</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Manifest para PWA y app metadata -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/assets/logo.png">
 </head>
 <body>
   <div class="container">
@@ -880,6 +885,9 @@
       console.log('window.api:', window.api);
     });
   </script>
+  <!-- Optimizaciones Android moderno (Android 10-16) -->
+  <script src="android-optimizations.js"></script>
+  <!-- Lógica principal de la aplicación -->
   <script src="app.js"></script>
 </body>
 </html>
